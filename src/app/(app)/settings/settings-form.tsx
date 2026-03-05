@@ -10,10 +10,11 @@ import { ExternalLink, X, Plus } from 'lucide-react'
 
 interface SettingsFormProps {
   userId: string
+  userEmail: string
   initialSettings: UserSettings | null
 }
 
-export function SettingsForm({ userId, initialSettings }: SettingsFormProps) {
+export function SettingsForm({ userId, userEmail, initialSettings }: SettingsFormProps) {
   const supabase = createClient()
   const [keywords, setKeywords] = useState<string[]>(
     initialSettings?.keywords ?? ['software engineer intern', 'product manager intern']
@@ -21,7 +22,7 @@ export function SettingsForm({ userId, initialSettings }: SettingsFormProps) {
   const [newKeyword, setNewKeyword] = useState('')
   const [location, setLocation] = useState(initialSettings?.location ?? '')
   const [emailNotifications, setEmailNotifications] = useState(initialSettings?.email_notifications ?? true)
-  const [notificationEmail, setNotificationEmail] = useState(initialSettings?.notification_email ?? '')
+  const [notificationEmail, setNotificationEmail] = useState(initialSettings?.notification_email ?? userEmail)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
@@ -113,9 +114,6 @@ export function SettingsForm({ userId, initialSettings }: SettingsFormProps) {
               placeholder="e.g. New York, United States"
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             />
-            <p className="text-xs text-gray-400 mt-1">
-              The scraper runs automatically every 30 minutes and only notifies you of new jobs.
-            </p>
           </div>
         </CardContent>
       </Card>
@@ -137,9 +135,7 @@ export function SettingsForm({ userId, initialSettings }: SettingsFormProps) {
           </label>
           {emailNotifications && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Notification email (leave blank to use account email)
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Notification email</label>
               <input
                 type="email"
                 value={notificationEmail}
@@ -147,6 +143,9 @@ export function SettingsForm({ userId, initialSettings }: SettingsFormProps) {
                 placeholder="you@example.com"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
               />
+              <p className="text-xs text-gray-400 mt-1">
+                The scraper runs automatically every 30 minutes and only notifies you of new jobs.
+              </p>
             </div>
           )}
         </CardContent>
