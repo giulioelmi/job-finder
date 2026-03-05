@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { SeedButton } from './seed-button'
 import { getStatusColor } from '@/lib/utils'
 import { Briefcase, Bell, TrendingUp, Clock } from 'lucide-react'
 import Link from 'next/link'
@@ -49,9 +50,12 @@ export default async function DashboardPage() {
 
   return (
     <div className="p-8 max-w-6xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-500 mt-1">Track your job search progress</p>
+      <div className="mb-8 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+          <p className="text-gray-500 mt-1">Track your job search progress</p>
+        </div>
+        <SeedButton />
       </div>
 
       {/* Stats */}
