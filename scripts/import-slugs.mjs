@@ -15,11 +15,26 @@
 
 import { readFileSync } from 'fs'
 import { createClient } from '@supabase/supabase-js'
-import { config } from 'dotenv'
 import { resolve } from 'path'
 
-// Load .env.local from project root
-config({ path: resolve(process.cwd(), '.env.local') })
+// Parse .env.local manually (no dotenv dependency needed)
+function loadEnv(filePath) {
+  try {
+    const text = readFileSync(filePath, 'utf8')
+    for (const line of text.split('\n')) {
+      const trimmed = line.trim()
+      if (!trimmed || trimmed.startsWith('#')) continue
+      const eq = trimmed.indexOf('=')
+      if (eq === -1) continue
+      const key = trimmed.slice(0, eq).trim()
+      const val = trimmed.slice(eq + 1).trim().replace(/^["']|["']$/g, '')
+      if (!(key in process.env)) process.env[key] = val
+    }
+  } catch {
+    // .env.local not found — rely on real env vars
+  }
+}
+loadEnv(resolve(process.cwd(), '.env.local'))
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
