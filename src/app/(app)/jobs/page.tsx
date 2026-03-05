@@ -22,8 +22,7 @@ export default async function JobsPage({
     .from('job_notifications')
     .select('notified_at, jobs(id, title, company, location, url, found_at, posted_at)')
     .eq('user_id', user!.id)
-    .gte('notified_at', new Date(Date.now() - hours * 60 * 60 * 1000).toISOString())
-    .order('notified_at', { ascending: false })
+    .gte('notified_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
 
   const { data: existingApps } = await supabase
     .from('applications')
@@ -31,7 +30,19 @@ export default async function JobsPage({
     .eq('user_id', user!.id)
 
   const appliedJobIds = new Set((existingApps ?? []).map(a => a.job_id))
-  const jobs = notifications ?? []
+
+  // Filter by posted_at (actual job posting time) and sort earliest first
+  const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000)
+  const jobs = (notifications ?? [])
+    .filter(n => {
+      const postedAt = (n.jobs as any)?.posted_at
+      return postedAt != null && new Date(postedAt) >= cutoff
+    })
+    .sort((a, b) => {
+      const aT = new Date((a.jobs as any)?.posted_at ?? 0).getTime()
+      const bT = new Date((b.jobs as any)?.posted_at ?? 0).getTime()
+      return aT - bT
+    })
 
   return (
     <div className="p-8 max-w-4xl mx-auto">
