@@ -22,11 +22,17 @@ const HEADERS = {
 }
 
 // jobTypeCode: 'I' = internship, 'F' = full-time (LinkedIn f_JT param)
-export function buildLinkedInSearchUrl(keywords: string[], location: string, jobTypeCode: string): string {
+// timeFilter: LinkedIn f_TPR values — 'r3600' = 1h, 'r86400' = 24h, 'r604800' = 1 week, 'r2592000' = 1 month
+export function buildLinkedInSearchUrl(
+  keywords: string[],
+  location: string,
+  jobTypeCode: string,
+  timeFilter = 'r86400'
+): string {
   const keywordQuery = keywords.map(k => `"${k}"`).join(' OR ')
   const params = new URLSearchParams({
     keywords: `(${keywordQuery})`,
-    f_TPR: 'r1800',
+    f_TPR: timeFilter,
     f_JT: jobTypeCode,
     sortBy: 'R',
   })
@@ -37,9 +43,10 @@ export function buildLinkedInSearchUrl(keywords: string[], location: string, job
 export async function scrapeLinkedInJobs(
   keywords: string[],
   location: string,
-  jobTypeCode: string
+  jobTypeCode: string,
+  timeFilter = 'r86400'
 ): Promise<ScrapeResult> {
-  const url = buildLinkedInSearchUrl(keywords, location, jobTypeCode)
+  const url = buildLinkedInSearchUrl(keywords, location, jobTypeCode, timeFilter)
 
   let response: Response
   try {

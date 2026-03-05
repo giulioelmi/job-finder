@@ -1,14 +1,24 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { scrapeLinkedInJobs, ScrapedJob } from '@/lib/scraper'
 import { sendJobNotificationEmail } from '@/lib/email'
-import { JOB_CATEGORIES, JOB_TYPES } from '@/lib/categories'
+import { JOB_TYPES } from '@/lib/categories'
 
-// Manual trigger — scrapes all of the current user's selected categories immediately
-export async function POST() {
+const VALID_TIME_FILTERS = new Set(['r3600', 'r86400', 'r604800', 'r2592000'])
+
+// Manual trigger — scrapes all of the current user's selected job titles immediately
+export async function POST(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  let timeFilter = 'r86400'
+  try {
+    const body = await req.json()
+    if (body.timeFilter && VALID_TIME_FILTERS.has(body.timeFilter)) {
+      timeFilter = body.timeFilter
+    }
+  } catch { /* no body is fine */ }
 
   const serviceClient = createServiceClient()
 
@@ -20,7 +30,7 @@ export async function POST() {
 
   if (!settings || !settings.categories?.length || !settings.job_types?.length) {
     return NextResponse.json(
-      { error: 'No categories selected. Please configure your search in Settings.' },
+      { error: 'No job titles selected. Please configure your search in Settings.' },
       { status: 400 }
     )
   }
@@ -30,23 +40,21 @@ export async function POST() {
   let totalNew = 0
   const allNewJobs: ScrapedJob[] = []
 
-  // Scrape all selected category × job_type combinations
-  for (const categoryId of settings.categories) {
-    const category = JOB_CATEGORIES.find(c => c.id === categoryId)
-    if (!category) continue
-
+  // Scrape each job title × job type combination
+  for (const jobTitle of settings.categories as string[]) {
     for (const jobTypeId of settings.job_types) {
       const jobType = JOB_TYPES.find(t => t.id === jobTypeId)
       if (!jobType) continue
 
       const result = await scrapeLinkedInJobs(
-        category.keywords as unknown as string[],
+        [jobTitle],
         '',
-        jobType.linkedinCode
+        jobType.linkedinCode,
+        timeFilter
       )
 
       if (!result.ok) {
-        console.error(`[trigger] Scrape failed for ${categoryId}/${jobTypeId}: ${result.message}`)
+        console.error(`[trigger] Scrape failed for "${jobTitle}"/${jobTypeId}: ${result.message}`)
         continue
       }
 
@@ -111,7 +119,7 @@ export async function POST() {
     }
   }
 
-  // Send a single email with all new jobs across all categories
+  // Send a single email with all new jobs
   if (allNewJobs.length > 0 && settings.email_notifications) {
     const email = settings.notification_email ?? user.email
     if (email) {
@@ -123,7 +131,7 @@ export async function POST() {
     found: totalFound,
     new: totalNew,
     message: totalNew > 0
-      ? `Found ${totalNew} new job(s) across your selected categories!`
+      ? `Found ${totalNew} new job(s) across your selected titles!`
       : 'No new jobs since last check.',
   })
 }

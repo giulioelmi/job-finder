@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { scrapeLinkedInJobs, ScrapedJob } from '@/lib/scraper'
 import { sendJobNotificationEmail } from '@/lib/email'
-import { JOB_CATEGORIES, JOB_TYPES } from '@/lib/categories'
+import { JOB_TYPES } from '@/lib/categories'
 
-// Cron runs every 5 minutes. Each run processes one category (both job types),
-// rotating through all 8 categories. Full cycle = 8 × 5 min = 40 minutes.
-// → 2 LinkedIn requests per run, ~24/hour — low enough to avoid rate limiting.
+// Cron runs every 5 minutes. Each run picks one unique job title (from all users' settings),
+// scrapes it, and notifies users who track that title. Full cycle time depends on
+// the number of unique titles across all users.
 export async function GET(req: NextRequest) {
   const secret = req.headers.get('x-cron-secret') ?? req.nextUrl.searchParams.get('secret')
   if (secret !== process.env.CRON_SECRET) {
@@ -15,11 +15,29 @@ export async function GET(req: NextRequest) {
 
   const supabase = createServiceClient()
 
-  // Determine which category to process this run based on current time slot
-  const slotIndex = Math.floor(Date.now() / (5 * 60 * 1000)) % JOB_CATEGORIES.length
-  const category = JOB_CATEGORIES[slotIndex]
+  // Gather all unique job titles from all users' settings
+  const { data: allSettings } = await supabase
+    .from('user_settings')
+    .select('categories')
 
-  // Clean up notifications older than 24 hours (do this on every run)
+  const uniqueTitles: string[] = []
+  for (const row of allSettings ?? []) {
+    for (const title of (row.categories as string[] | null) ?? []) {
+      if (title && !uniqueTitles.includes(title)) {
+        uniqueTitles.push(title)
+      }
+    }
+  }
+
+  if (uniqueTitles.length === 0) {
+    return NextResponse.json({ success: true, message: 'No job titles configured by any user.' })
+  }
+
+  // Rotate through titles based on current 5-minute slot
+  const slotIndex = Math.floor(Date.now() / (5 * 60 * 1000)) % uniqueTitles.length
+  const currentTitle = uniqueTitles[slotIndex]
+
+  // Clean up notifications older than 24 hours
   await supabase
     .from('job_notifications')
     .delete()
@@ -27,18 +45,18 @@ export async function GET(req: NextRequest) {
 
   const runResults: Record<string, { scraped: number; notified_users: number }> = {}
 
-  // Scrape this category for each job type (internship + full-time)
+  // Scrape this title for each job type
   for (const jobType of JOB_TYPES) {
-    const result = await scrapeLinkedInJobs(category.keywords as unknown as string[], '', jobType.linkedinCode)
+    const result = await scrapeLinkedInJobs([currentTitle], '', jobType.linkedinCode)
 
     if (!result.ok) {
-      console.error(`[cron] Scrape failed for ${category.id}/${jobType.id}: ${result.message}`)
-      runResults[`${category.id}/${jobType.id}`] = { scraped: 0, notified_users: 0 }
+      console.error(`[cron] Scrape failed for "${currentTitle}"/${jobType.id}: ${result.message}`)
+      runResults[`${currentTitle}/${jobType.id}`] = { scraped: 0, notified_users: 0 }
       continue
     }
 
     const scraped = result.jobs
-    runResults[`${category.id}/${jobType.id}`] = { scraped: scraped.length, notified_users: 0 }
+    runResults[`${currentTitle}/${jobType.id}`] = { scraped: scraped.length, notified_users: 0 }
 
     if (scraped.length === 0) continue
 
@@ -57,7 +75,7 @@ export async function GET(req: NextRequest) {
         { onConflict: 'linkedin_id', ignoreDuplicates: true }
       )
 
-    // Fetch the DB ids for the scraped jobs
+    // Fetch DB ids for the scraped jobs
     const { data: jobRows } = await supabase
       .from('jobs')
       .select('id, linkedin_id, location')
@@ -65,18 +83,21 @@ export async function GET(req: NextRequest) {
 
     if (!jobRows || jobRows.length === 0) continue
 
-    // Find users who want this category + job type, with email notifications on
+    // Find users who track this job title and this job type, with email notifications on
     const { data: matchingUsers } = await supabase
       .from('user_settings')
       .select('user_id, categories, job_types, location, email_notifications, notification_email')
-      .contains('categories', [category.id])
       .contains('job_types', [jobType.id])
       .eq('email_notifications', true)
 
-    if (!matchingUsers || matchingUsers.length === 0) continue
+    if (!matchingUsers) continue
 
-    for (const user of matchingUsers) {
-      // Filter jobs by user's location preference (if set)
+    // Filter to users who actually have this title in their categories
+    const usersWantingTitle = matchingUsers.filter(u =>
+      (u.categories as string[] | null)?.includes(currentTitle)
+    )
+
+    for (const user of usersWantingTitle) {
       const userLocation = (user.location ?? '').trim().toLowerCase()
       const relevantJobRows = userLocation
         ? jobRows.filter(j => j.location?.toLowerCase().includes(userLocation))
@@ -84,7 +105,6 @@ export async function GET(req: NextRequest) {
 
       if (relevantJobRows.length === 0) continue
 
-      // Find which jobs this user hasn't been notified about yet
       const { data: existingNotifs } = await supabase
         .from('job_notifications')
         .select('job_id')
@@ -96,12 +116,10 @@ export async function GET(req: NextRequest) {
 
       if (newJobRows.length === 0) continue
 
-      // Insert notifications
       await supabase.from('job_notifications').insert(
         newJobRows.map(j => ({ user_id: user.user_id, job_id: j.id }))
       )
 
-      // Send email
       const email = user.notification_email
       if (email) {
         const newJobDetails: ScrapedJob[] = newJobRows
@@ -110,14 +128,15 @@ export async function GET(req: NextRequest) {
         await sendJobNotificationEmail(email, newJobDetails)
       }
 
-      runResults[`${category.id}/${jobType.id}`].notified_users++
+      runResults[`${currentTitle}/${jobType.id}`].notified_users++
     }
   }
 
   return NextResponse.json({
     success: true,
     slot: slotIndex,
-    category: category.id,
+    title: currentTitle,
+    totalTitles: uniqueTitles.length,
     results: runResults,
   })
 }
