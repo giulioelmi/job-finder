@@ -14,7 +14,8 @@ export type FetchResult =
 interface GreenhouseApiJob {
   id: number
   title: string
-  created_at: string
+  created_at: string | null
+  updated_at: string | null
   location: { name: string }
   absolute_url: string
 }
@@ -75,12 +76,12 @@ export async function fetchGreenhouseJobs(
       company: companySlug,
       location: job.location?.name || null,
       url: job.absolute_url,
-      posted_at: job.created_at || null,
+      posted_at: job.created_at || job.updated_at || null,
     }))
 
-  // Apply createdAfter in JS — the public boards API may silently ignore the query param
+  // Apply createdAfter filter in JS if posted_at is available
   if (createdAfter) {
-    jobs = jobs.filter(job => job.posted_at != null && new Date(job.posted_at) >= createdAfter)
+    jobs = jobs.filter(job => job.posted_at == null || new Date(job.posted_at) >= createdAfter)
   }
 
   if (keywords.length > 0) {
