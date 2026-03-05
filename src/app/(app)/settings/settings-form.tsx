@@ -39,6 +39,7 @@ export function SettingsForm({ userId, userEmail, initialSettings }: SettingsFor
   const [notificationEmail, setNotificationEmail] = useState(initialSettings?.notification_email ?? userEmail)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   // Job title search state
   const [titleQuery, setTitleQuery] = useState('')
@@ -111,7 +112,8 @@ export function SettingsForm({ userId, userEmail, initialSettings }: SettingsFor
 
   async function handleSave() {
     setSaving(true)
-    await supabase
+    setSaveError(null)
+    const { error } = await supabase
       .from('user_settings')
       .upsert(
         {
@@ -127,8 +129,12 @@ export function SettingsForm({ userId, userEmail, initialSettings }: SettingsFor
         { onConflict: 'user_id' }
       )
     setSaving(false)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 3000)
+    if (error) {
+      setSaveError(error.message)
+    } else {
+      setSaved(true)
+      setTimeout(() => setSaved(false), 3000)
+    }
   }
 
   return (
@@ -436,6 +442,7 @@ export function SettingsForm({ userId, userEmail, initialSettings }: SettingsFor
           {saving ? 'Saving...' : 'Save Settings'}
         </Button>
         {saved && <span className="text-sm text-green-600 font-medium">Saved!</span>}
+        {saveError && <span className="text-sm text-red-500">{saveError}</span>}
         {!canSave && (
           <span className="text-sm text-red-500">Select a company search option.</span>
         )}
