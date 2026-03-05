@@ -5,16 +5,16 @@ create extension if not exists "uuid-ossp";
 create table if not exists user_settings (
   id uuid primary key default uuid_generate_v4(),
   user_id uuid references auth.users(id) on delete cascade unique,
-  keywords text[] default array['software engineer', 'developer'],
+  categories text[] default array['data-scientist', 'data-analyst'],
+  job_types text[] default array['internship', 'fulltime'],
   location text default '',
-  time_period integer default 1800,
   email_notifications boolean default true,
   notification_email text,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
 
--- Jobs table
+-- Jobs table (central catalog, shared across all users)
 create table if not exists jobs (
   id uuid primary key default uuid_generate_v4(),
   linkedin_id text unique not null,

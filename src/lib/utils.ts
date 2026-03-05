@@ -5,18 +5,6 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function buildLinkedInUrl(keywords: string[], location: string, timePeriod: number): string {
-  const keywordQuery = keywords.map(k => `"${k}"`).join(' OR ')
-  const params = new URLSearchParams({
-    keywords: `(${keywordQuery})`,
-    f_TPR: `r${timePeriod}`,
-    sortBy: 'R',
-  })
-  if (location) {
-    params.set('location', location)
-  }
-  return `https://www.linkedin.com/jobs/search/?${params.toString()}`
-}
 
 export function getStatusColor(status: string): string {
   switch (status) {

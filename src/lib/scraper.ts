@@ -11,23 +11,7 @@ export interface ScrapedJob {
 
 export type ScrapeResult =
   | { ok: true; jobs: ScrapedJob[] }
-  | { ok: false; reason: 'blocked' | 'rate_limited' | 'empty' | 'error'; message: string }
-
-// LinkedIn's public guest jobs search — no authentication required.
-// Uses the standard /jobs/search/ page which is stable and publicly indexed.
-// The /jobs-guest/jobs/api/seeMoreJobPostings/search endpoint returns HTML
-// fragments directly, which are lighter to parse.
-function buildSearchUrl(keywords: string[], location: string, timePeriod: number): string {
-  const keywordQuery = keywords.map(k => `"${k}"`).join(' OR ')
-  const params = new URLSearchParams({
-    keywords: `(${keywordQuery})`,
-    f_TPR: `r${timePeriod}`,
-    sortBy: 'R',
-  })
-  if (location) params.set('location', location)
-  // Guest API returns HTML fragments (faster, less data)
-  return `https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?${params}&start=0`
-}
+  | { ok: false; reason: 'blocked' | 'rate_limited' | 'error'; message: string }
 
 const HEADERS = {
   'User-Agent':
@@ -37,12 +21,25 @@ const HEADERS = {
   Referer: 'https://www.linkedin.com/',
 }
 
+// jobTypeCode: 'I' = internship, 'F' = full-time (LinkedIn f_JT param)
+export function buildLinkedInSearchUrl(keywords: string[], location: string, jobTypeCode: string): string {
+  const keywordQuery = keywords.map(k => `"${k}"`).join(' OR ')
+  const params = new URLSearchParams({
+    keywords: `(${keywordQuery})`,
+    f_TPR: 'r1800',
+    f_JT: jobTypeCode,
+    sortBy: 'R',
+  })
+  if (location) params.set('location', location)
+  return `https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?${params}&start=0`
+}
+
 export async function scrapeLinkedInJobs(
   keywords: string[],
   location: string,
-  timePeriod: number
+  jobTypeCode: string
 ): Promise<ScrapeResult> {
-  const url = buildSearchUrl(keywords, location, timePeriod)
+  const url = buildLinkedInSearchUrl(keywords, location, jobTypeCode)
 
   let response: Response
   try {
@@ -65,8 +62,7 @@ export async function scrapeLinkedInJobs(
 
   const html = await response.text()
 
-  // Detect when LinkedIn silently redirects to login/captcha page instead of jobs.
-  // Real job results contain job card markup; login pages contain "sign-in" markers.
+  // Detect silent blocks: login/captcha pages returned with 200 OK
   if (
     html.includes('linkedin.com/login') ||
     html.includes('authwall') ||
@@ -76,19 +72,11 @@ export async function scrapeLinkedInJobs(
     return {
       ok: false,
       reason: 'blocked',
-      message: 'LinkedIn returned a login/auth page. The server IP may be blocked. Try again later.',
+      message: 'LinkedIn returned a login/auth page. The server IP may be blocked.',
     }
   }
 
-  const jobs = parseJobListings(html)
-
-  if (jobs.length === 0) {
-    // Could be a genuine empty result or a changed HTML structure.
-    // Return ok:true with empty array — caller can decide.
-    return { ok: true, jobs: [] }
-  }
-
-  return { ok: true, jobs }
+  return { ok: true, jobs: parseJobListings(html) }
 }
 
 function parseJobListings(html: string): ScrapedJob[] {
@@ -98,7 +86,6 @@ function parseJobListings(html: string): ScrapedJob[] {
   $('li').each((_, el) => {
     const card = $(el)
 
-    // Extract job ID from link href
     const jobLink = card.find('a.base-card__full-link, a[href*="/jobs/view/"]').first()
     const href = jobLink.attr('href') ?? ''
     const jobIdMatch = href.match(/\/jobs\/view\/(\d+)/)
@@ -106,26 +93,22 @@ function parseJobListings(html: string): ScrapedJob[] {
 
     const linkedin_id = jobIdMatch[1]
 
-    // Title — try multiple selectors for resilience
     const title =
       card.find('.base-search-card__title').first().text().trim() ||
       card.find('h3').first().text().trim()
 
     if (!title) return
 
-    // Company
     const company =
       card.find('.base-search-card__subtitle').first().text().trim() ||
       card.find('h4').first().text().trim() ||
       null
 
-    // Location
     const location =
       card.find('.job-search-card__location').first().text().trim() ||
       card.find('[class*="location"]').first().text().trim() ||
       null
 
-    // Posted date (ISO 8601 datetime attribute)
     const posted_at = card.find('time').attr('datetime') ?? null
 
     jobs.push({

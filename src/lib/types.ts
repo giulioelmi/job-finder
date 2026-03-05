@@ -1,9 +1,11 @@
+import { CategoryId, JobTypeId } from './categories'
+
 export interface UserSettings {
   id: string
   user_id: string
-  keywords: string[]
+  categories: CategoryId[]
+  job_types: JobTypeId[]
   location: string
-  time_period: number
   email_notifications: boolean
   notification_email: string | null
   created_at: string

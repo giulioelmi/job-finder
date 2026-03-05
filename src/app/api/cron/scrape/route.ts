@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { scrapeLinkedInJobs, ScrapedJob } from '@/lib/scraper'
 import { sendJobNotificationEmail } from '@/lib/email'
+import { JOB_CATEGORIES, JOB_TYPES } from '@/lib/categories'
 
-// Called by cron every 30 minutes (e.g. via cron-job.org or Vercel Cron)
-// Secured with a secret header to prevent unauthorized runs
+// Cron runs every 5 minutes. Each run processes one category (both job types),
+// rotating through all 8 categories. Full cycle = 8 × 5 min = 40 minutes.
+// → 2 LinkedIn requests per run, ~24/hour — low enough to avoid rate limiting.
 export async function GET(req: NextRequest) {
   const secret = req.headers.get('x-cron-secret') ?? req.nextUrl.searchParams.get('secret')
   if (secret !== process.env.CRON_SECRET) {
@@ -13,119 +15,109 @@ export async function GET(req: NextRequest) {
 
   const supabase = createServiceClient()
 
-  // Get all users with email notifications enabled
-  const { data: allSettings, error: settingsError } = await supabase
-    .from('user_settings')
-    .select('*, auth_users:user_id(email)')
-    .eq('email_notifications', true)
+  // Determine which category to process this run based on current time slot
+  const slotIndex = Math.floor(Date.now() / (5 * 60 * 1000)) % JOB_CATEGORIES.length
+  const category = JOB_CATEGORIES[slotIndex]
 
-  if (settingsError) {
-    console.error('Failed to fetch settings:', settingsError)
-    return NextResponse.json({ error: 'DB error' }, { status: 500 })
-  }
-
-  if (!allSettings || allSettings.length === 0) {
-    return NextResponse.json({ message: 'No users with notifications enabled' })
-  }
-
-  // Clean up notifications older than 24 hours
+  // Clean up notifications older than 24 hours (do this on every run)
   await supabase
     .from('job_notifications')
     .delete()
     .lt('notified_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
 
-  const results: Record<string, { found: number; new: number; notified: boolean }> = {}
+  const runResults: Record<string, { scraped: number; notified_users: number }> = {}
 
-  for (const settings of allSettings) {
-    const userId = settings.user_id
-    const userEmail = settings.notification_email ?? (settings as { auth_users?: { email?: string } }).auth_users?.email
+  // Scrape this category for each job type (internship + full-time)
+  for (const jobType of JOB_TYPES) {
+    const result = await scrapeLinkedInJobs(category.keywords as unknown as string[], '', jobType.linkedinCode)
 
-    try {
-      // Scrape LinkedIn using this user's settings
-      const result = await scrapeLinkedInJobs(
-        settings.keywords,
-        settings.location ?? '',
-        1800
+    if (!result.ok) {
+      console.error(`[cron] Scrape failed for ${category.id}/${jobType.id}: ${result.message}`)
+      runResults[`${category.id}/${jobType.id}`] = { scraped: 0, notified_users: 0 }
+      continue
+    }
+
+    const scraped = result.jobs
+    runResults[`${category.id}/${jobType.id}`] = { scraped: scraped.length, notified_users: 0 }
+
+    if (scraped.length === 0) continue
+
+    // Upsert jobs into the central jobs table
+    await supabase
+      .from('jobs')
+      .upsert(
+        scraped.map(j => ({
+          linkedin_id: j.linkedin_id,
+          title: j.title,
+          company: j.company,
+          location: j.location,
+          url: j.url,
+          posted_at: j.posted_at,
+        })),
+        { onConflict: 'linkedin_id', ignoreDuplicates: true }
       )
 
-      if (!result.ok) {
-        console.error(`Scrape failed for user ${userId}: ${result.message}`)
-        results[userId] = { found: 0, new: 0, notified: false }
-        continue
-      }
+    // Fetch the DB ids for the scraped jobs
+    const { data: jobRows } = await supabase
+      .from('jobs')
+      .select('id, linkedin_id, location')
+      .in('linkedin_id', scraped.map(j => j.linkedin_id))
 
-      const scraped = result.jobs
+    if (!jobRows || jobRows.length === 0) continue
 
-      if (scraped.length === 0) {
-        results[userId] = { found: 0, new: 0, notified: false }
-        continue
-      }
+    // Find users who want this category + job type, with email notifications on
+    const { data: matchingUsers } = await supabase
+      .from('user_settings')
+      .select('user_id, categories, job_types, location, email_notifications, notification_email')
+      .contains('categories', [category.id])
+      .contains('job_types', [jobType.id])
+      .eq('email_notifications', true)
 
-      // Upsert jobs into the jobs table (ignore duplicates)
-      const { error: upsertError } = await supabase
-        .from('jobs')
-        .upsert(
-          scraped.map(j => ({
-            linkedin_id: j.linkedin_id,
-            title: j.title,
-            company: j.company,
-            location: j.location,
-            url: j.url,
-            posted_at: j.posted_at,
-          })),
-          { onConflict: 'linkedin_id', ignoreDuplicates: true }
-        )
+    if (!matchingUsers || matchingUsers.length === 0) continue
 
-      if (upsertError) {
-        console.error(`Upsert error for user ${userId}:`, upsertError)
-        continue
-      }
+    for (const user of matchingUsers) {
+      // Filter jobs by user's location preference (if set)
+      const userLocation = (user.location ?? '').trim().toLowerCase()
+      const relevantJobRows = userLocation
+        ? jobRows.filter(j => j.location?.toLowerCase().includes(userLocation))
+        : jobRows
 
-      // Fetch job IDs for the scraped linkedin_ids
-      const { data: jobRows } = await supabase
-        .from('jobs')
-        .select('id, linkedin_id')
-        .in('linkedin_id', scraped.map(j => j.linkedin_id))
+      if (relevantJobRows.length === 0) continue
 
-      if (!jobRows) continue
-
-      // Find which jobs this user has NOT been notified about yet
+      // Find which jobs this user hasn't been notified about yet
       const { data: existingNotifs } = await supabase
         .from('job_notifications')
         .select('job_id')
-        .eq('user_id', userId)
-        .in('job_id', jobRows.map(j => j.id))
+        .eq('user_id', user.user_id)
+        .in('job_id', relevantJobRows.map(j => j.id))
 
-      const notifiedJobIds = new Set((existingNotifs ?? []).map(n => n.job_id))
-      const newJobRows = jobRows.filter(j => !notifiedJobIds.has(j.id))
+      const notifiedIds = new Set((existingNotifs ?? []).map(n => n.job_id))
+      const newJobRows = relevantJobRows.filter(j => !notifiedIds.has(j.id))
 
-      if (newJobRows.length === 0) {
-        results[userId] = { found: scraped.length, new: 0, notified: false }
-        continue
-      }
+      if (newJobRows.length === 0) continue
 
-      // Insert notifications for new jobs
+      // Insert notifications
       await supabase.from('job_notifications').insert(
-        newJobRows.map(j => ({ user_id: userId, job_id: j.id }))
+        newJobRows.map(j => ({ user_id: user.user_id, job_id: j.id }))
       )
 
-      // Send email if user has an email address
-      let notified = false
-      if (userEmail) {
+      // Send email
+      const email = user.notification_email
+      if (email) {
         const newJobDetails: ScrapedJob[] = newJobRows
           .map(jr => scraped.find(s => s.linkedin_id === jr.linkedin_id))
           .filter((j): j is ScrapedJob => !!j)
-
-        await sendJobNotificationEmail(userEmail, newJobDetails)
-        notified = true
+        await sendJobNotificationEmail(email, newJobDetails)
       }
 
-      results[userId] = { found: scraped.length, new: newJobRows.length, notified }
-    } catch (err) {
-      console.error(`Error processing user ${userId}:`, err)
-      results[userId] = { found: 0, new: 0, notified: false }
+      runResults[`${category.id}/${jobType.id}`].notified_users++
     }
   }
 
-  return NextResponse.json({ success: true, results })
+  return NextResponse.json({
+    success: true,
+    slot: slotIndex,
+    category: category.id,
+    results: runResults,
+  })
 }

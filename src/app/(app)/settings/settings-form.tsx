@@ -4,9 +4,8 @@ import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { buildLinkedInUrl } from '@/lib/utils'
+import { JOB_CATEGORIES, JOB_TYPES, CategoryId, JobTypeId } from '@/lib/categories'
 import { UserSettings } from '@/lib/types'
-import { ExternalLink, X, Plus } from 'lucide-react'
 
 interface SettingsFormProps {
   userId: string
@@ -14,87 +13,120 @@ interface SettingsFormProps {
   initialSettings: UserSettings | null
 }
 
+const DEFAULT_CATEGORIES: CategoryId[] = ['data-scientist', 'data-analyst']
+const DEFAULT_JOB_TYPES: JobTypeId[] = ['internship', 'fulltime']
+
 export function SettingsForm({ userId, userEmail, initialSettings }: SettingsFormProps) {
   const supabase = createClient()
-  const [keywords, setKeywords] = useState<string[]>(
-    initialSettings?.keywords ?? ['software engineer intern', 'product manager intern']
+  const [categories, setCategories] = useState<CategoryId[]>(
+    initialSettings?.categories ?? DEFAULT_CATEGORIES
   )
-  const [newKeyword, setNewKeyword] = useState('')
+  const [jobTypes, setJobTypes] = useState<JobTypeId[]>(
+    initialSettings?.job_types ?? DEFAULT_JOB_TYPES
+  )
   const [location, setLocation] = useState(initialSettings?.location ?? '')
   const [emailNotifications, setEmailNotifications] = useState(initialSettings?.email_notifications ?? true)
   const [notificationEmail, setNotificationEmail] = useState(initialSettings?.notification_email ?? userEmail)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
-  function addKeyword() {
-    const kw = newKeyword.trim()
-    if (kw && !keywords.includes(kw)) {
-      setKeywords([...keywords, kw])
-    }
-    setNewKeyword('')
+  function toggleCategory(id: CategoryId) {
+    setCategories(prev =>
+      prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]
+    )
   }
 
-  function removeKeyword(kw: string) {
-    setKeywords(keywords.filter(k => k !== kw))
+  function toggleJobType(id: JobTypeId) {
+    setJobTypes(prev =>
+      prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]
+    )
   }
 
   async function handleSave() {
     setSaving(true)
-    const payload = {
-      user_id: userId,
-      keywords,
-      location,
-      time_period: 1800,
-      email_notifications: emailNotifications,
-      notification_email: notificationEmail || null,
-    }
-
     await supabase
       .from('user_settings')
-      .upsert(payload, { onConflict: 'user_id' })
-
+      .upsert(
+        {
+          user_id: userId,
+          categories,
+          job_types: jobTypes,
+          location,
+          email_notifications: emailNotifications,
+          notification_email: notificationEmail || null,
+        },
+        { onConflict: 'user_id' }
+      )
     setSaving(false)
     setSaved(true)
     setTimeout(() => setSaved(false), 3000)
   }
 
-  const previewUrl = buildLinkedInUrl(keywords, location, 1800)
-
   return (
     <div className="space-y-6">
-      {/* Keywords */}
+      {/* Job Categories */}
       <Card>
         <CardHeader>
-          <CardTitle>Job Keywords</CardTitle>
-          <p className="text-sm text-gray-500 mt-1">Add job titles you want to track</p>
+          <CardTitle>Job Categories</CardTitle>
+          <p className="text-sm text-gray-500 mt-1">
+            Select the roles you want to track. The scraper covers all selected categories automatically.
+          </p>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-wrap gap-2 mb-3">
-            {keywords.map(kw => (
-              <span
-                key={kw}
-                className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm font-medium"
-              >
-                {kw}
-                <button onClick={() => removeKeyword(kw)} className="hover:text-blue-900">
-                  <X className="w-3 h-3" />
-                </button>
-              </span>
-            ))}
+          <div className="grid grid-cols-2 gap-3">
+            {JOB_CATEGORIES.map(cat => {
+              const checked = categories.includes(cat.id)
+              return (
+                <label
+                  key={cat.id}
+                  className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                    checked
+                      ? 'border-blue-500 bg-blue-50 text-blue-800'
+                      : 'border-gray-200 hover:border-gray-300 text-gray-700'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleCategory(cat.id)}
+                    className="w-4 h-4 text-blue-600 rounded"
+                  />
+                  <span className="text-sm font-medium">{cat.label}</span>
+                </label>
+              )
+            })}
           </div>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={newKeyword}
-              onChange={e => setNewKeyword(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && addKeyword()}
-              placeholder="e.g. data analyst intern"
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-            />
-            <Button onClick={addKeyword} size="sm" variant="secondary">
-              <Plus className="w-4 h-4 mr-1" />
-              Add
-            </Button>
+        </CardContent>
+      </Card>
+
+      {/* Job Types */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Job Types</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-4">
+            {JOB_TYPES.map(jt => {
+              const checked = jobTypes.includes(jt.id)
+              return (
+                <label
+                  key={jt.id}
+                  className={`flex items-center gap-3 px-5 py-3 rounded-lg border cursor-pointer transition-colors ${
+                    checked
+                      ? 'border-blue-500 bg-blue-50 text-blue-800'
+                      : 'border-gray-200 hover:border-gray-300 text-gray-700'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleJobType(jt.id)}
+                    className="w-4 h-4 text-blue-600 rounded"
+                  />
+                  <span className="text-sm font-medium">{jt.label}</span>
+                </label>
+              )
+            })}
           </div>
         </CardContent>
       </Card>
@@ -102,23 +134,23 @@ export function SettingsForm({ userId, userEmail, initialSettings }: SettingsFor
       {/* Location */}
       <Card>
         <CardHeader>
-          <CardTitle>Search Filters</CardTitle>
+          <CardTitle>Location</CardTitle>
+          <p className="text-sm text-gray-500 mt-1">
+            Only show jobs matching this location. Leave empty for all locations.
+          </p>
         </CardHeader>
         <CardContent>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Location (optional)</label>
-            <input
-              type="text"
-              value={location}
-              onChange={e => setLocation(e.target.value)}
-              placeholder="e.g. New York, United States"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-            />
-          </div>
+          <input
+            type="text"
+            value={location}
+            onChange={e => setLocation(e.target.value)}
+            placeholder="e.g. United States, New York, Remote"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+          />
         </CardContent>
       </Card>
 
-      {/* Email */}
+      {/* Email Notifications */}
       <Card>
         <CardHeader>
           <CardTitle>Email Notifications</CardTitle>
@@ -144,40 +176,24 @@ export function SettingsForm({ userId, userEmail, initialSettings }: SettingsFor
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
               />
               <p className="text-xs text-gray-400 mt-1">
-                The scraper runs automatically every 30 minutes and only notifies you of new jobs.
+                Each category is refreshed automatically every ~40 minutes. You&apos;ll only be notified of new jobs.
               </p>
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* LinkedIn URL Preview */}
-      <Card>
-        <CardHeader>
-          <CardTitle>LinkedIn Search Preview</CardTitle>
-          <p className="text-sm text-gray-500 mt-1">This is the URL the scraper will use</p>
-        </CardHeader>
-        <CardContent>
-          <div className="bg-gray-50 rounded-lg p-3 text-xs text-gray-600 break-all font-mono">
-            {previewUrl}
-          </div>
-          <a
-            href={previewUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:underline mt-3"
-          >
-            <ExternalLink className="w-3.5 h-3.5" />
-            Test this search on LinkedIn
-          </a>
-        </CardContent>
-      </Card>
-
       <div className="flex items-center gap-3">
-        <Button onClick={handleSave} disabled={saving} size="lg">
+        <Button onClick={handleSave} disabled={saving || categories.length === 0 || jobTypes.length === 0} size="lg">
           {saving ? 'Saving...' : 'Save Settings'}
         </Button>
         {saved && <span className="text-sm text-green-600 font-medium">Saved!</span>}
+        {categories.length === 0 && (
+          <span className="text-sm text-red-500">Select at least one category.</span>
+        )}
+        {categories.length > 0 && jobTypes.length === 0 && (
+          <span className="text-sm text-red-500">Select at least one job type.</span>
+        )}
       </div>
     </div>
   )
