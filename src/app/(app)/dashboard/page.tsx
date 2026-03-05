@@ -15,7 +15,7 @@ export default async function DashboardPage() {
   const [applicationsRes, notificationsRes, recentJobsRes] = await Promise.all([
     supabase
       .from('applications')
-      .select('status, jobs(title, company)', { count: 'exact' })
+      .select('status, created_at, jobs(title, company)', { count: 'exact' })
       .eq('user_id', user!.id),
     supabase
       .from('job_notifications')
@@ -26,6 +26,7 @@ export default async function DashboardPage() {
       .from('job_notifications')
       .select('notified_at, jobs(title, company, url, location)')
       .eq('user_id', user!.id)
+      .gte('notified_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
       .order('notified_at', { ascending: false })
       .limit(5),
   ])
@@ -33,6 +34,20 @@ export default async function DashboardPage() {
   const applications = applicationsRes.data ?? []
   const notificationsCount = notificationsRes.count ?? 0
   const recentJobs = recentJobsRes.data ?? []
+
+  // Build 7-day activity chart data
+  const today = new Date()
+  const weekDays = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(today)
+    d.setDate(today.getDate() - (6 - i))
+    return d.toISOString().split('T')[0]
+  })
+  const appsByDay = weekDays.map(day => ({
+    day,
+    label: new Date(day + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short' }),
+    count: applications.filter(a => a.created_at?.startsWith(day)).length,
+  }))
+  const maxCount = Math.max(...appsByDay.map(d => d.count), 1)
 
   const statusCounts = {
     applied: applications.filter(a => a.status === 'applied').length,
@@ -152,6 +167,55 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Weekly Activity Chart */}
+      <Card className="mt-6">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Weekly Activity</CardTitle>
+              <p className="text-sm text-gray-500 mt-0.5">Applications submitted this week</p>
+            </div>
+            <div className="text-right">
+              <p className="text-2xl font-bold text-blue-600">
+                {appsByDay.reduce((sum, d) => sum + d.count, 0)}
+              </p>
+              <p className="text-xs text-gray-400">this week</p>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-end gap-2 h-28">
+            {appsByDay.map(({ day, label, count }) => {
+              const isToday = day === today.toISOString().split('T')[0]
+              const height = count === 0 ? 4 : Math.max(12, Math.round((count / maxCount) * 100))
+              return (
+                <div key={day} className="flex-1 flex flex-col items-center gap-1.5">
+                  {count > 0 && (
+                    <span className="text-xs font-semibold text-gray-700">{count}</span>
+                  )}
+                  <div
+                    className={`w-full rounded-t-md transition-all ${
+                      isToday
+                        ? count > 0 ? 'bg-blue-500' : 'bg-blue-200'
+                        : count > 0 ? 'bg-blue-300' : 'bg-gray-100'
+                    }`}
+                    style={{ height: `${height}px` }}
+                  />
+                  <span className={`text-xs ${isToday ? 'font-semibold text-blue-600' : 'text-gray-400'}`}>
+                    {label}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+          {applications.length === 0 && (
+            <p className="text-center text-sm text-gray-400 mt-4">
+              Start applying to see your activity here. Early applicants get more responses!
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Pipeline breakdown */}
       {applications.length > 0 && (

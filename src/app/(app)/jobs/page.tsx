@@ -2,8 +2,8 @@ import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { RunScraperButton } from './run-scraper-button'
-import { ExternalLink, MapPin, Building2, Clock, Bell } from 'lucide-react'
-import { formatDistanceToNow } from 'date-fns'
+import { JobListClient } from './job-list-client'
+import { Bell } from 'lucide-react'
 
 export default async function JobsPage() {
   const supabase = await createClient()
@@ -17,6 +17,13 @@ export default async function JobsPage() {
     .gte('notified_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
     .order('notified_at', { ascending: false })
 
+  // Jobs the user has already applied to (for button state)
+  const { data: existingApps } = await supabase
+    .from('applications')
+    .select('job_id')
+    .eq('user_id', user!.id)
+
+  const appliedJobIds = new Set((existingApps ?? []).map(a => a.job_id))
   const jobs = notifications ?? []
 
   return (
@@ -24,7 +31,7 @@ export default async function JobsPage() {
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Recent Jobs</h1>
-          <p className="text-gray-500 mt-1">Jobs you were notified about in the last 24 hours</p>
+          <p className="text-gray-500 mt-1">Jobs found in the last 24 hours matching your preferences</p>
         </div>
         <div className="flex items-center gap-3">
           <RunScraperButton />
@@ -46,60 +53,11 @@ export default async function JobsPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-3">
-          {jobs.map((notif, i) => {
-            const job = (notif.jobs as unknown) as {
-              id: string
-              title: string
-              company: string | null
-              location: string | null
-              url: string
-              found_at: string
-              posted_at: string | null
-            } | null
-
-            if (!job) return null
-
-            return (
-              <Card key={i} className="hover:shadow-md transition-shadow">
-                <CardContent className="py-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-gray-900 text-base truncate">{job.title}</h3>
-                      <div className="flex items-center flex-wrap gap-3 mt-1.5 text-sm text-gray-500">
-                        {job.company && (
-                          <span className="flex items-center gap-1">
-                            <Building2 className="w-3.5 h-3.5" />
-                            {job.company}
-                          </span>
-                        )}
-                        {job.location && (
-                          <span className="flex items-center gap-1">
-                            <MapPin className="w-3.5 h-3.5" />
-                            {job.location}
-                          </span>
-                        )}
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-3.5 h-3.5" />
-                          Found {formatDistanceToNow(new Date(job.found_at), { addSuffix: true })}
-                        </span>
-                      </div>
-                    </div>
-                    <a
-                      href={job.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex-shrink-0 inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
-                    >
-                      View Job
-                      <ExternalLink className="w-3.5 h-3.5" />
-                    </a>
-                  </div>
-                </CardContent>
-              </Card>
-            )
-          })}
-        </div>
+        <JobListClient
+          jobs={jobs as never}
+          userId={user!.id}
+          appliedJobIds={appliedJobIds}
+        />
       )}
     </div>
   )

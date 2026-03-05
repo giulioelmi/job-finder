@@ -28,6 +28,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ message: 'No users with notifications enabled' })
   }
 
+  // Clean up notifications older than 24 hours
+  await supabase
+    .from('job_notifications')
+    .delete()
+    .lt('notified_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+
   const results: Record<string, { found: number; new: number; notified: boolean }> = {}
 
   for (const settings of allSettings) {
@@ -39,7 +45,7 @@ export async function GET(req: NextRequest) {
       const scraped = await scrapeLinkedInJobs(
         settings.keywords,
         settings.location ?? '',
-        settings.time_period ?? 1800
+        1800
       )
 
       if (scraped.length === 0) {
