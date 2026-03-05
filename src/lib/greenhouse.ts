@@ -14,7 +14,7 @@ export type FetchResult =
 interface GreenhouseApiJob {
   id: number
   title: string
-  updated_at: string
+  created_at: string
   location: { name: string }
   absolute_url: string
 }
@@ -31,15 +31,20 @@ function matchesJobType(title: string, jobTypes: string[]): boolean {
   return true
 }
 
-// Fetch all open jobs for a Greenhouse company board.
-//   keywords – filter by job title containing any keyword (empty = all)
-//   jobTypes – ['internship'], ['fulltime'], or both/empty = all
+// Fetch open jobs for a Greenhouse company board.
+//   keywords    – filter by job title containing any keyword (empty = all)
+//   jobTypes    – ['internship'], ['fulltime'], or both/empty = all
+//   createdAfter – only return jobs created at or after this timestamp
 export async function fetchGreenhouseJobs(
   companySlug: string,
   keywords: string[],
-  jobTypes: string[] = []
+  jobTypes: string[] = [],
+  createdAfter?: Date
 ): Promise<FetchResult> {
-  const url = `https://boards-api.greenhouse.io/v1/boards/${companySlug}/jobs`
+  const params = new URLSearchParams()
+  if (createdAfter) params.set('created_at[gte]', createdAfter.toISOString())
+  const query = params.toString()
+  const url = `https://boards-api.greenhouse.io/v1/boards/${companySlug}/jobs${query ? `?${query}` : ''}`
 
   let response: Response
   try {
@@ -70,7 +75,7 @@ export async function fetchGreenhouseJobs(
       company: companySlug,
       location: job.location?.name || null,
       url: job.absolute_url,
-      posted_at: job.updated_at || null,
+      posted_at: job.created_at || null,
     }))
 
   if (keywords.length > 0) {

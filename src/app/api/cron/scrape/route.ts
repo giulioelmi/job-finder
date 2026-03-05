@@ -4,9 +4,9 @@ import { fetchGreenhouseJobs, GreenhouseJob } from '@/lib/greenhouse'
 import { sendJobNotificationEmail } from '@/lib/email'
 import { ALL_GREENHOUSE_COMPANIES } from '@/lib/categories'
 
-// Cron runs every 5 minutes.
-// Builds the full set of companies to check (all for users with search_all_companies, plus
-// specific companies), fetches them in parallel (filtering to last hour), and notifies users.
+// Cron runs every 20 minutes, fetching jobs created in the last 30 minutes.
+// The intentional 10-minute overlap ensures no jobs are missed between runs.
+// Deduplication is handled by job_notifications — users are never notified twice.
 export async function GET(req: NextRequest) {
   const secret = req.headers.get('x-cron-secret') ?? req.nextUrl.searchParams.get('secret')
   if (secret !== process.env.CRON_SECRET) {
@@ -49,9 +49,10 @@ export async function GET(req: NextRequest) {
     .delete()
     .lt('notified_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
 
-  // Fetch all companies in parallel (all open jobs, no time filter)
+  // Fetch jobs created in the last 30 minutes across all companies in parallel
+  const createdAfter = new Date(Date.now() - 30 * 60 * 1000)
   const fetchResults = await Promise.allSettled(
-    companiesToCheck.map(slug => fetchGreenhouseJobs(slug, [], []))
+    companiesToCheck.map(slug => fetchGreenhouseJobs(slug, [], [], createdAfter))
   )
 
   // Build a flat map of external_id → GreenhouseJob for all fetched jobs
@@ -66,7 +67,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (allFetched.size === 0) {
-    return NextResponse.json({ success: true, fetched: 0, message: 'No new jobs in the last hour.' })
+    return NextResponse.json({ success: true, fetched: 0, message: 'No new jobs in the last 30 minutes.' })
   }
 
   // Upsert all fetched jobs into the central catalog
