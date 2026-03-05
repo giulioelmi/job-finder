@@ -78,6 +78,11 @@ export async function fetchGreenhouseJobs(
       posted_at: job.created_at || null,
     }))
 
+  // Apply createdAfter in JS — the public boards API may silently ignore the query param
+  if (createdAfter) {
+    jobs = jobs.filter(job => job.posted_at != null && new Date(job.posted_at) >= createdAfter)
+  }
+
   if (keywords.length > 0) {
     const lower = keywords.map(k => k.toLowerCase())
     jobs = jobs.filter(job => lower.some(kw => job.title.toLowerCase().includes(kw)))

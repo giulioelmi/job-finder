@@ -5,7 +5,7 @@ import { sendJobNotificationEmail } from '@/lib/email'
 import { ALL_GREENHOUSE_COMPANIES } from '@/lib/categories'
 
 // Manual trigger — fetches companies based on user settings, filters by keywords and job type.
-// Only includes jobs updated within the last hour (same as cron behaviour).
+// Uses the same 30-minute created_at window as the cron so results are consistent.
 export async function POST(_req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -36,9 +36,10 @@ export async function POST(_req: NextRequest) {
   let totalNew = 0
   const allNewJobs: GreenhouseJob[] = []
 
-  // Fetch all companies in parallel
+  // Fetch jobs created in the last 30 minutes (same window as cron)
+  const createdAfter = new Date(Date.now() - 30 * 60 * 1000)
   const results = await Promise.allSettled(
-    companies.map(slug => fetchGreenhouseJobs(slug, keywords, jobTypes))
+    companies.map(slug => fetchGreenhouseJobs(slug, keywords, jobTypes, createdAfter))
   )
 
   for (let i = 0; i < companies.length; i++) {
@@ -113,7 +114,7 @@ export async function POST(_req: NextRequest) {
     ? `Found ${totalNew} new job(s) out of ${totalFound} fetched.`
     : totalFound > 0
       ? `Fetched ${totalFound} job(s) — all already seen.`
-      : 'No jobs updated in the last hour across tracked companies.'
+      : 'No jobs posted in the last 30 minutes across tracked companies.'
 
   return NextResponse.json({ found: totalFound, new: totalNew, message })
 }
