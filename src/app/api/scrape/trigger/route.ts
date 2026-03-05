@@ -36,10 +36,9 @@ export async function POST(_req: NextRequest) {
   let totalNew = 0
   const allNewJobs: GreenhouseJob[] = []
 
-  // Fetch jobs created in the last 30 days for manual trigger (cron uses 30 min)
-  const createdAfter = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+  // No time restriction, no keyword/type filters — fetch everything
   const results = await Promise.allSettled(
-    companies.map(slug => fetchGreenhouseJobs(slug, keywords, jobTypes, createdAfter))
+    companies.map(slug => fetchGreenhouseJobs(slug, [], []))
   )
 
   for (let i = 0; i < companies.length; i++) {
@@ -53,6 +52,7 @@ export async function POST(_req: NextRequest) {
     }
 
     const fetched = res.value.jobs
+    console.log(`[trigger] ${companies[i]}: ${fetched.length} jobs`)
     if (fetched.length === 0) continue
 
     totalFound += fetched.length
