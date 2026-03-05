@@ -49,9 +49,9 @@ export async function GET(req: NextRequest) {
     .delete()
     .lt('notified_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
 
-  // Fetch all companies in parallel, only jobs updated in the last hour
+  // Fetch all companies in parallel (all open jobs, no time filter)
   const fetchResults = await Promise.allSettled(
-    companiesToCheck.map(slug => fetchGreenhouseJobs(slug, [], [], 1))
+    companiesToCheck.map(slug => fetchGreenhouseJobs(slug, [], []))
   )
 
   // Build a flat map of external_id → GreenhouseJob for all fetched jobs

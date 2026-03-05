@@ -31,15 +31,13 @@ function matchesJobType(title: string, jobTypes: string[]): boolean {
   return true
 }
 
-// Fetch open jobs for a Greenhouse company board.
-//   keywords  – filter by job title containing any keyword (empty = all)
-//   jobTypes  – ['internship'], ['fulltime'], or both/empty = all
-//   hoursBack – only include jobs whose updated_at is within this many hours (undefined = no filter)
+// Fetch all open jobs for a Greenhouse company board.
+//   keywords – filter by job title containing any keyword (empty = all)
+//   jobTypes – ['internship'], ['fulltime'], or both/empty = all
 export async function fetchGreenhouseJobs(
   companySlug: string,
   keywords: string[],
-  jobTypes: string[] = [],
-  hoursBack?: number
+  jobTypes: string[] = []
 ): Promise<FetchResult> {
   const url = `https://boards-api.greenhouse.io/v1/boards/${companySlug}/jobs`
 
@@ -65,10 +63,7 @@ export async function fetchGreenhouseJobs(
     return { ok: false, reason: 'error', message: `Failed to parse Greenhouse response for "${companySlug}".` }
   }
 
-  const cutoff = hoursBack ? new Date(Date.now() - hoursBack * 60 * 60 * 1000) : null
-
   let jobs: GreenhouseJob[] = (data.jobs ?? [])
-    .filter(job => !cutoff || !job.updated_at || new Date(job.updated_at) >= cutoff)
     .map(job => ({
       external_id: `gh_${companySlug}_${job.id}`,
       title: job.title,

@@ -38,7 +38,7 @@ export async function POST(_req: NextRequest) {
 
   // Fetch all companies in parallel
   const results = await Promise.allSettled(
-    companies.map(slug => fetchGreenhouseJobs(slug, keywords, jobTypes, 1))
+    companies.map(slug => fetchGreenhouseJobs(slug, keywords, jobTypes))
   )
 
   for (let i = 0; i < companies.length; i++) {
