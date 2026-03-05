@@ -2,7 +2,6 @@ import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { RunScraperButton } from './run-scraper-button'
 import { JobListClient } from './job-list-client'
 import { TimeFilter } from './time-filter'
 import { Bell } from 'lucide-react'
@@ -21,7 +20,7 @@ export default async function JobsPage({
 
   const notifQuery = supabase
     .from('job_notifications')
-    .select('notified_at, jobs(id, title, company, location, url, found_at, posted_at)')
+    .select('id, notified_at, jobs(id, title, company, location, url, found_at, posted_at)')
     .eq('user_id', user!.id)
   if (!all) notifQuery.gte('notified_at', new Date(Date.now() - hours * 60 * 60 * 1000).toISOString())
   const { data: notifications } = await notifQuery
@@ -55,12 +54,9 @@ export default async function JobsPage({
           <h1 className="text-2xl font-bold text-gray-900">Recent Jobs</h1>
           <p className="text-gray-500 mt-1">{all ? 'All jobs matching your preferences' : `Jobs matching your preferences from the last ${hours}h`}</p>
         </div>
-        <div className="flex items-center gap-3">
-          <RunScraperButton />
-          <Badge className="bg-blue-100 text-blue-700 text-sm px-3 py-1">
-            {jobs.length} job{jobs.length !== 1 ? 's' : ''}
-          </Badge>
-        </div>
+        <Badge className="bg-blue-100 text-blue-700 text-sm px-3 py-1">
+          {jobs.length} job{jobs.length !== 1 ? 's' : ''}
+        </Badge>
       </div>
 
       <div className="mb-6">
@@ -75,9 +71,8 @@ export default async function JobsPage({
             <Bell className="w-12 h-12 text-gray-300 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-gray-700 mb-2">No jobs yet</h3>
             <p className="text-gray-500 text-sm max-w-sm mx-auto">
-              Jobs are fetched every 5 minutes. Make sure you&apos;ve configured your alerts in{' '}
-              <a href="/settings" className="text-blue-600 hover:underline">Settings</a>,
-              or click &ldquo;Fetch Now&rdquo; above.
+              Jobs are fetched automatically. Make sure you&apos;ve configured your alerts in{' '}
+              <a href="/settings" className="text-blue-600 hover:underline">Settings</a>.
             </p>
           </CardContent>
         </Card>

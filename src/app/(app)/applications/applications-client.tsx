@@ -7,10 +7,10 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { getStatusColor } from '@/lib/utils'
 import { Application, ApplicationStatus } from '@/lib/types'
-import { ExternalLink, Building2, MapPin, ChevronDown, Briefcase, Plus, X } from 'lucide-react'
+import { ExternalLink, Building2, MapPin, ChevronDown, Briefcase, Plus, X, Trash2 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 
-const STATUSES: ApplicationStatus[] = ['applied', 'interview', 'offer', 'rejected', 'saved']
+const STATUSES: ApplicationStatus[] = ['viewed', 'applied', 'interview', 'offer', 'rejected', 'saved']
 
 interface ApplicationsClientProps {
   applications: Application[]
@@ -31,6 +31,11 @@ export function ApplicationsClient({ applications: initial, userId }: Applicatio
   async function updateNotes(appId: string, notes: string) {
     await supabase.from('applications').update({ notes }).eq('id', appId)
     setApplications(prev => prev.map(a => a.id === appId ? { ...a, notes, updated_at: new Date().toISOString() } : a))
+  }
+
+  async function deleteApplication(appId: string) {
+    await supabase.from('applications').delete().eq('id', appId).eq('user_id', userId)
+    setApplications(prev => prev.filter(a => a.id !== appId))
   }
 
   async function handleAddManual(data: {
@@ -154,6 +159,13 @@ export function ApplicationsClient({ applications: initial, userId }: Applicatio
                             </select>
                             <ChevronDown className="w-3 h-3 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
                           </div>
+                          <button
+                            onClick={() => deleteApplication(app.id)}
+                            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Delete application"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </div>
                       </div>
 

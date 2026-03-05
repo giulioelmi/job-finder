@@ -33,9 +33,9 @@ export function Sidebar({ userEmail }: SidebarProps) {
           <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
             <Briefcase className="w-4 h-4 text-white" />
           </div>
-          <span className="font-bold text-lg">JobFinder</span>
+          <span className="font-bold text-lg">VacanSea</span>
         </div>
-        <p className="text-xs text-gray-400 mt-1">LinkedIn Job Tracker</p>
+        <p className="text-xs text-gray-400 mt-1">Job Alert Dashboard</p>
       </div>
 
       {/* Nav */}

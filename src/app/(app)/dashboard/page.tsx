@@ -10,6 +10,9 @@ export default async function DashboardPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
+  const todayStart = new Date()
+  todayStart.setUTCHours(0, 0, 0, 0)
+
   // Fetch stats in parallel
   const [applicationsRes, notificationsRes, recentJobsRes] = await Promise.all([
     supabase
@@ -18,9 +21,9 @@ export default async function DashboardPage() {
       .eq('user_id', user!.id),
     supabase
       .from('job_notifications')
-      .select('id', { count: 'exact' })
+      .select('id, jobs!inner(posted_at)', { count: 'exact' })
       .eq('user_id', user!.id)
-      .gte('notified_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()),
+      .gte('jobs.posted_at', todayStart.toISOString()),
     supabase
       .from('job_notifications')
       .select('notified_at, jobs(title, company, url, location)')

@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent } from '@/components/ui/card'
-import { MapPin, Building2, Clock, ExternalLink, CheckCircle } from 'lucide-react'
+import { MapPin, Building2, Clock, ExternalLink, Eye, Trash2 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 
 interface Job {
@@ -16,37 +16,53 @@ interface Job {
   found_at: string
 }
 
+interface Notification {
+  id: string
+  notified_at: string
+  jobs: Job | null
+}
+
 interface JobListClientProps {
-  jobs: { notified_at: string; jobs: Job | null }[]
+  jobs: Notification[]
   userId: string
   appliedJobIds: Set<string>
 }
 
-export function JobListClient({ jobs, userId, appliedJobIds: initial }: JobListClientProps) {
+export function JobListClient({ jobs: initial, userId, appliedJobIds: initialViewed }: JobListClientProps) {
   const supabase = createClient()
-  const [applied, setApplied] = useState<Set<string>>(initial)
+  const [viewed, setViewed] = useState<Set<string>>(initialViewed)
+  const [notifications, setNotifications] = useState(initial)
 
   async function handleViewJob(job: Job) {
-    if (!applied.has(job.id)) {
+    if (!viewed.has(job.id)) {
       await supabase.from('applications').upsert(
-        { user_id: userId, job_id: job.id, status: 'applied' },
+        { user_id: userId, job_id: job.id, status: 'viewed' },
         { onConflict: 'user_id,job_id', ignoreDuplicates: true }
       )
-      setApplied(prev => new Set(prev).add(job.id))
+      setViewed(prev => new Set(prev).add(job.id))
     }
     window.open(job.url, '_blank', 'noopener,noreferrer')
   }
 
+  async function handleDelete(notificationId: string) {
+    await supabase
+      .from('job_notifications')
+      .delete()
+      .eq('id', notificationId)
+      .eq('user_id', userId)
+    setNotifications(prev => prev.filter(n => n.id !== notificationId))
+  }
+
   return (
     <div className="space-y-3">
-      {jobs.map((notif, i) => {
+      {notifications.map(notif => {
         const job = notif.jobs
         if (!job) return null
-        const isApplied = applied.has(job.id)
+        const isViewed = viewed.has(job.id)
         const timestamp = job.posted_at ?? job.found_at
 
         return (
-          <Card key={i} className="hover:shadow-md transition-shadow">
+          <Card key={notif.id} className="hover:shadow-md transition-shadow">
             <CardContent className="py-4">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
@@ -70,26 +86,35 @@ export function JobListClient({ jobs, userId, appliedJobIds: initial }: JobListC
                     </span>
                   </div>
                 </div>
-                <button
-                  onClick={() => handleViewJob(job)}
-                  className={`flex-shrink-0 inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                    isApplied
-                      ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                      : 'bg-blue-600 text-white hover:bg-blue-700'
-                  }`}
-                >
-                  {isApplied ? (
-                    <>
-                      <CheckCircle className="w-3.5 h-3.5" />
-                      Applied
-                    </>
-                  ) : (
-                    <>
-                      View Job
-                      <ExternalLink className="w-3.5 h-3.5" />
-                    </>
-                  )}
-                </button>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => handleViewJob(job)}
+                    className={`inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                      isViewed
+                        ? 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        : 'bg-blue-600 text-white hover:bg-blue-700'
+                    }`}
+                  >
+                    {isViewed ? (
+                      <>
+                        <Eye className="w-3.5 h-3.5" />
+                        Viewed
+                      </>
+                    ) : (
+                      <>
+                        View Job
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => handleDelete(notif.id)}
+                    className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                    title="Remove job"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             </CardContent>
           </Card>
