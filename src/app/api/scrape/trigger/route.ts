@@ -38,6 +38,7 @@ export async function POST(req: NextRequest) {
   const userLocation = (settings.location ?? '').trim().toLowerCase()
   let totalFound = 0
   let totalNew = 0
+  let blocked = false
   const allNewJobs: ScrapedJob[] = []
 
   // Scrape each job title × job type combination
@@ -55,6 +56,7 @@ export async function POST(req: NextRequest) {
 
       if (!result.ok) {
         console.error(`[trigger] Scrape failed for "${jobTitle}"/${jobTypeId}: ${result.message}`)
+        if (result.reason === 'blocked' || result.reason === 'rate_limited') blocked = true
         continue
       }
 
@@ -127,11 +129,21 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  let message: string
+  if (blocked && totalFound === 0) {
+    message = 'LinkedIn is blocking requests from this server. Try again later or check your deployment IP.'
+  } else if (totalNew > 0) {
+    message = `Found ${totalNew} new job(s) out of ${totalFound} scraped.`
+  } else if (totalFound > 0) {
+    message = `Scraped ${totalFound} job(s) — all already seen.`
+  } else {
+    message = 'LinkedIn returned 0 results. The IP may be rate-limited.'
+  }
+
   return NextResponse.json({
     found: totalFound,
     new: totalNew,
-    message: totalNew > 0
-      ? `Found ${totalNew} new job(s) across your selected titles!`
-      : 'No new jobs since last check.',
+    blocked,
+    message,
   })
 }
