@@ -13,12 +13,25 @@ export type ScrapeResult =
   | { ok: true; jobs: ScrapedJob[] }
   | { ok: false; reason: 'blocked' | 'rate_limited' | 'error'; message: string }
 
-const HEADERS = {
-  'User-Agent':
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-  'Accept-Language': 'en-US,en;q=0.9',
-  Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-  Referer: 'https://www.linkedin.com/',
+const SCRAPFLY_API = 'https://api.scrapfly.io/scrape'
+
+async function scrapflyFetch(targetUrl: string): Promise<{ html: string; status: number }> {
+  const apiKey = process.env.SCRAPFLY_API_KEY
+  if (!apiKey) throw new Error('SCRAPFLY_API_KEY is not set')
+
+  const params = new URLSearchParams({
+    key: apiKey,
+    url: targetUrl,
+    asp: 'true',
+    country: 'us',
+  })
+
+  const response = await fetch(`${SCRAPFLY_API}?${params}`, { next: { revalidate: 0 } })
+  const json = await response.json()
+
+  const status: number = json?.result?.status_code ?? response.status
+  const html: string = json?.result?.content ?? ''
+  return { html, status }
 }
 
 // jobTypeCode: 'I' = internship, 'F' = full-time (LinkedIn f_JT param)
@@ -48,26 +61,25 @@ export async function scrapeLinkedInJobs(
 ): Promise<ScrapeResult> {
   const url = buildLinkedInSearchUrl(keywords, location, jobTypeCode, timeFilter)
 
-  let response: Response
+  let html: string
+  let status: number
   try {
-    response = await fetch(url, { headers: HEADERS, next: { revalidate: 0 } })
+    ;({ html, status } = await scrapflyFetch(url))
   } catch (err) {
-    return { ok: false, reason: 'error', message: `Network error: ${String(err)}` }
+    return { ok: false, reason: 'error', message: `Scrapfly request failed: ${String(err)}` }
   }
 
-  if (response.status === 429) {
+  if (status === 429) {
     return { ok: false, reason: 'rate_limited', message: 'LinkedIn rate limit hit (429). Try again later.' }
   }
 
-  if (response.status === 403 || response.status === 401) {
-    return { ok: false, reason: 'blocked', message: `LinkedIn blocked the request (${response.status}).` }
+  if (status === 403 || status === 401) {
+    return { ok: false, reason: 'blocked', message: `LinkedIn blocked the request (${status}).` }
   }
 
-  if (!response.ok) {
-    return { ok: false, reason: 'error', message: `Unexpected HTTP ${response.status} from LinkedIn.` }
+  if (status < 200 || status >= 300) {
+    return { ok: false, reason: 'error', message: `Unexpected HTTP ${status} from LinkedIn.` }
   }
-
-  const html = await response.text()
 
   // Detect silent blocks: login/captcha pages returned with 200 OK
   if (
