@@ -36,9 +36,10 @@ export async function POST(_req: NextRequest) {
   let totalNew = 0
   const allNewJobs: GreenhouseJob[] = []
 
-  // No time restriction, no keyword/type filters — fetch everything
+  // Fetch jobs from last 7 days, filtered by user's keywords and job types
+  const createdAfter = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
   const results = await Promise.allSettled(
-    companies.map(slug => fetchGreenhouseJobs(slug, [], []))
+    companies.map(slug => fetchGreenhouseJobs(slug, keywords, jobTypes, createdAfter))
   )
 
   for (let i = 0; i < companies.length; i++) {
@@ -52,7 +53,6 @@ export async function POST(_req: NextRequest) {
     }
 
     const fetched = res.value.jobs
-    console.log(`[trigger] ${companies[i]}: ${fetched.length} jobs`)
     if (fetched.length === 0) continue
 
     totalFound += fetched.length
@@ -116,7 +116,7 @@ export async function POST(_req: NextRequest) {
     ? `Found ${totalNew} new job(s) out of ${totalFound} fetched.`
     : totalFound > 0
       ? `Fetched ${totalFound} job(s) — all already seen.`
-      : 'No matching jobs found in the last 30 days across tracked companies.'
+      : 'No matching jobs found in the last 7 days across tracked companies.'
 
   return NextResponse.json({ found: totalFound, new: totalNew, message })
 }
