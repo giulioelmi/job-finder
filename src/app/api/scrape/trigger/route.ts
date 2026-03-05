@@ -45,8 +45,10 @@ export async function POST(_req: NextRequest) {
   for (let i = 0; i < companies.length; i++) {
     const res = results[i]
     if (res.status === 'rejected' || !res.value.ok) {
-      const msg = res.status === 'rejected' ? res.reason : (res.value as { ok: false; message: string }).message
-      console.error(`[trigger] Greenhouse fetch failed for "${companies[i]}": ${msg}`)
+      if (res.status === 'rejected' || (res.value as { ok: false; reason: string }).reason !== 'not_found') {
+        const msg = res.status === 'rejected' ? res.reason : (res.value as { ok: false; message: string }).message
+        console.error(`[trigger] Greenhouse fetch failed for "${companies[i]}": ${msg}`)
+      }
       continue
     }
 
