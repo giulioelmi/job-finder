@@ -42,11 +42,19 @@ export async function GET(req: NextRequest) {
 
     try {
       // Scrape LinkedIn using this user's settings
-      const scraped = await scrapeLinkedInJobs(
+      const result = await scrapeLinkedInJobs(
         settings.keywords,
         settings.location ?? '',
         1800
       )
+
+      if (!result.ok) {
+        console.error(`Scrape failed for user ${userId}: ${result.message}`)
+        results[userId] = { found: 0, new: 0, notified: false }
+        continue
+      }
+
+      const scraped = result.jobs
 
       if (scraped.length === 0) {
         results[userId] = { found: 0, new: 0, notified: false }
