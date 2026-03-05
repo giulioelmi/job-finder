@@ -11,5 +11,4 @@ alter table user_settings add column if not exists companies text[] default arra
 alter table user_settings drop column if exists job_types;
 
 -- 4. Clear existing jobs and notifications (they were LinkedIn jobs, no longer valid)
-truncate table job_notifications;
-truncate table jobs;
+truncate table jobs cascade;
