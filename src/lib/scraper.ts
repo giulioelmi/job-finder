@@ -83,7 +83,18 @@ export async function scrapeLinkedInJobs(
     }
   }
 
-  return { ok: true, jobs: parseJobListings(html) }
+  return { ok: true, jobs: parseJobListings(html).filter(isRecentJob) }
+}
+
+// LinkedIn sometimes returns old promoted jobs regardless of the f_TPR filter.
+// Drop any job whose posted_at date is older than 60 days.
+const MAX_AGE_MS = 60 * 24 * 60 * 60 * 1000
+
+function isRecentJob(job: ScrapedJob): boolean {
+  if (!job.posted_at) return true // no date → keep, we can't tell
+  const postedMs = new Date(job.posted_at).getTime()
+  if (isNaN(postedMs)) return true
+  return Date.now() - postedMs <= MAX_AGE_MS
 }
 
 function parseJobListings(html: string): ScrapedJob[] {
