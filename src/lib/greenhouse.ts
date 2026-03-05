@@ -14,7 +14,8 @@ export type FetchResult =
 interface GreenhouseApiJob {
   id: number
   title: string
-  created_at: string | null
+  company_name: string
+  first_published: string | null
   updated_at: string | null
   location: { name: string }
   absolute_url: string
@@ -73,10 +74,10 @@ export async function fetchGreenhouseJobs(
     .map(job => ({
       external_id: `gh_${companySlug}_${job.id}`,
       title: job.title,
-      company: companySlug,
+      company: job.company_name || companySlug,
       location: job.location?.name || null,
       url: job.absolute_url,
-      posted_at: job.created_at || job.updated_at || null,
+      posted_at: job.first_published || job.updated_at || null,
     }))
 
   // Apply createdAfter filter in JS if posted_at is available
