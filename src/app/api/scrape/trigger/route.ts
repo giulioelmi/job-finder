@@ -36,8 +36,8 @@ export async function POST(_req: NextRequest) {
   let totalNew = 0
   const allNewJobs: GreenhouseJob[] = []
 
-  // Fetch jobs created in the last 7 days for manual trigger (cron uses 30 min)
-  const createdAfter = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+  // Fetch jobs created in the last 30 days for manual trigger (cron uses 30 min)
+  const createdAfter = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
   const results = await Promise.allSettled(
     companies.map(slug => fetchGreenhouseJobs(slug, keywords, jobTypes, createdAfter))
   )
@@ -116,7 +116,7 @@ export async function POST(_req: NextRequest) {
     ? `Found ${totalNew} new job(s) out of ${totalFound} fetched.`
     : totalFound > 0
       ? `Fetched ${totalFound} job(s) — all already seen.`
-      : 'No matching jobs found in the last 7 days across tracked companies.'
+      : 'No matching jobs found in the last 30 days across tracked companies.'
 
   return NextResponse.json({ found: totalFound, new: totalNew, message })
 }
