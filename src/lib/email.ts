@@ -1,13 +1,12 @@
 import { Resend } from 'resend'
 import { GreenhouseJob } from './greenhouse'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
-
 export async function sendJobNotificationEmail(
   to: string,
   jobs: GreenhouseJob[]
 ): Promise<void> {
   if (jobs.length === 0) return
+  const resend = new Resend(process.env.RESEND_API_KEY)
 
   const jobListHtml = jobs
     .map(
