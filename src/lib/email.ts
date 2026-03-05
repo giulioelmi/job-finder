@@ -6,6 +6,7 @@ export async function sendJobNotificationEmail(
   jobs: GreenhouseJob[]
 ): Promise<void> {
   if (jobs.length === 0) return
+  if (!process.env.RESEND_API_KEY) return
   const resend = new Resend(process.env.RESEND_API_KEY)
 
   const jobListHtml = jobs
