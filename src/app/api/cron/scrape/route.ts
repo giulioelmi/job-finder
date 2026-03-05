@@ -87,7 +87,7 @@ export async function GET(req: NextRequest) {
     url: j.url,
     posted_at: j.posted_at,
   }))
-  await supabase.from('jobs').upsert(jobsToUpsert, { onConflict: 'external_id', ignoreDuplicates: true })
+  await supabase.from('jobs').upsert(jobsToUpsert, { onConflict: 'external_id', ignoreDuplicates: false })
 
   // Fetch DB rows for the upserted jobs
   const { data: jobRows } = await supabase

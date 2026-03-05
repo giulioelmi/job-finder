@@ -68,7 +68,7 @@ export async function POST(_req: NextRequest) {
           url: j.url,
           posted_at: j.posted_at,
         })),
-        { onConflict: 'external_id', ignoreDuplicates: true }
+        { onConflict: 'external_id', ignoreDuplicates: false }
       )
 
     const { data: jobRows } = await serviceClient
