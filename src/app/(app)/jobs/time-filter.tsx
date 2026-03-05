@@ -7,9 +7,10 @@ const OPTIONS = [
   { label: '6h',  value: 6 },
   { label: '12h', value: 12 },
   { label: '24h', value: 24 },
+  { label: 'All', value: 0 },
 ]
 
-export function TimeFilter({ current }: { current: number }) {
+export function TimeFilter({ current, all }: { current: number; all: boolean }) {
   const router = useRouter()
   const params = useSearchParams()
 
@@ -21,19 +22,22 @@ export function TimeFilter({ current }: { current: number }) {
 
   return (
     <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
-      {OPTIONS.map(opt => (
-        <button
-          key={opt.value}
-          onClick={() => select(opt.value)}
-          className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-            current === opt.value
-              ? 'bg-white text-gray-900 shadow-sm'
-              : 'text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          {opt.label}
-        </button>
-      ))}
+      {OPTIONS.map(opt => {
+        const active = opt.value === 0 ? all : !all && current === opt.value
+        return (
+          <button
+            key={opt.value}
+            onClick={() => select(opt.value)}
+            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
+              active
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            {opt.label}
+          </button>
+        )
+      })}
     </div>
   )
 }

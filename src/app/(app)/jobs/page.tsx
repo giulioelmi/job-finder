@@ -13,16 +13,18 @@ export default async function JobsPage({
   searchParams: Promise<{ hours?: string }>
 }) {
   const { hours: hoursStr } = await searchParams
-  const hours = Math.min(24, Math.max(1, parseInt(hoursStr ?? '24', 10) || 24))
+  const all = hoursStr === '0'
+  const hours = all ? 0 : Math.min(168, Math.max(1, parseInt(hoursStr ?? '24', 10) || 24))
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const { data: notifications } = await supabase
+  const notifQuery = supabase
     .from('job_notifications')
     .select('notified_at, jobs(id, title, company, location, url, found_at, posted_at)')
     .eq('user_id', user!.id)
-    .gte('notified_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+  if (!all) notifQuery.gte('notified_at', new Date(Date.now() - hours * 60 * 60 * 1000).toISOString())
+  const { data: notifications } = await notifQuery
 
   const { data: existingApps } = await supabase
     .from('applications')
@@ -31,17 +33,19 @@ export default async function JobsPage({
 
   const appliedJobIds = new Set((existingApps ?? []).map(a => a.job_id))
 
-  // Filter by posted_at (actual job posting time) and sort earliest first
-  const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000)
+  // Filter by posted_at and sort newest first
+  const cutoff = all ? null : new Date(Date.now() - hours * 60 * 60 * 1000)
   const jobs = (notifications ?? [])
     .filter(n => {
       const postedAt = (n.jobs as any)?.posted_at
-      return postedAt != null && new Date(postedAt) >= cutoff
+      if (postedAt == null) return false
+      if (cutoff) return new Date(postedAt) >= cutoff
+      return true
     })
     .sort((a, b) => {
       const aT = new Date((a.jobs as any)?.posted_at ?? 0).getTime()
       const bT = new Date((b.jobs as any)?.posted_at ?? 0).getTime()
-      return aT - bT
+      return bT - aT
     })
 
   return (
@@ -49,7 +53,7 @@ export default async function JobsPage({
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Recent Jobs</h1>
-          <p className="text-gray-500 mt-1">Jobs matching your preferences from the last {hours}h</p>
+          <p className="text-gray-500 mt-1">{all ? 'All jobs matching your preferences' : `Jobs matching your preferences from the last ${hours}h`}</p>
         </div>
         <div className="flex items-center gap-3">
           <RunScraperButton />
@@ -61,7 +65,7 @@ export default async function JobsPage({
 
       <div className="mb-6">
         <Suspense>
-          <TimeFilter current={hours} />
+          <TimeFilter current={hours} all={all} />
         </Suspense>
       </div>
 
