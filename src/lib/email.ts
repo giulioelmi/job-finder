@@ -1,11 +1,11 @@
 import { Resend } from 'resend'
-import { ScrapedJob } from './scraper'
+import { GreenhouseJob } from './greenhouse'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
 export async function sendJobNotificationEmail(
   to: string,
-  jobs: ScrapedJob[]
+  jobs: GreenhouseJob[]
 ): Promise<void> {
   if (jobs.length === 0) return
 
@@ -26,12 +26,12 @@ export async function sendJobNotificationEmail(
   await resend.emails.send({
     from: process.env.RESEND_FROM_EMAIL ?? 'JobFinder <noreply@yourdomain.com>',
     to,
-    subject: `🔔 ${jobs.length} new job${jobs.length > 1 ? 's' : ''} found on LinkedIn`,
+    subject: `🔔 ${jobs.length} new job${jobs.length > 1 ? 's' : ''} found`,
     html: `
       <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;">
         <h2 style="color:#111827;margin-bottom:4px;">New Jobs Found</h2>
         <p style="color:#6b7280;margin-bottom:24px;">
-          We found ${jobs.length} new job${jobs.length > 1 ? 's' : ''} matching your search in the last 30 minutes.
+          We found ${jobs.length} new job${jobs.length > 1 ? 's' : ''} matching your search.
         </p>
         ${jobListHtml}
         <p style="color:#9ca3af;font-size:12px;margin-top:24px;">

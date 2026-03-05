@@ -5,8 +5,8 @@ create extension if not exists "uuid-ossp";
 create table if not exists user_settings (
   id uuid primary key default uuid_generate_v4(),
   user_id uuid references auth.users(id) on delete cascade unique,
-  categories text[] default array['data-scientist', 'data-analyst'],
-  job_types text[] default array['internship', 'fulltime'],
+  companies text[] default array[]::text[],
+  categories text[] default array['Data Scientist', 'Data Analyst'],
   location text default '',
   email_notifications boolean default true,
   notification_email text,
@@ -17,7 +17,7 @@ create table if not exists user_settings (
 -- Jobs table (central catalog, shared across all users)
 create table if not exists jobs (
   id uuid primary key default uuid_generate_v4(),
-  linkedin_id text unique not null,
+  external_id text unique not null,
   title text not null,
   company text,
   location text,
@@ -81,7 +81,7 @@ create policy "Users can delete own applications" on applications
 create policy "Authenticated users can view jobs" on jobs
   for select using (auth.role() = 'authenticated');
 
--- Service role can do everything (for the scraper)
+-- Service role can do everything (for the job fetcher)
 create policy "Service role can manage jobs" on jobs
   for all using (auth.role() = 'service_role');
 create policy "Service role can manage notifications" on job_notifications

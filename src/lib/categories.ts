@@ -1,11 +1,4 @@
-export const JOB_TYPES = [
-  { id: 'internship', label: 'Internship', linkedinCode: 'I' },
-  { id: 'fulltime',   label: 'Full-time',  linkedinCode: 'F' },
-] as const
-
-export type JobTypeId = (typeof JOB_TYPES)[number]['id']
-
-// Suggested job titles for the settings search autocomplete
+// Suggested job title keywords for filtering Greenhouse results
 export const JOB_TITLE_SUGGESTIONS = [
   'Data Scientist',
   'Data Engineer',
@@ -33,4 +26,29 @@ export const JOB_TITLE_SUGGESTIONS = [
   'Site Reliability Engineer',
   'Platform Engineer',
   'Solutions Architect',
+]
+
+// Popular companies that use Greenhouse — users enter the board slug
+// Find a company's slug at: boards.greenhouse.io/{slug}
+export const COMPANY_SUGGESTIONS = [
+  'airbnb',
+  'stripe',
+  'notion',
+  'figma',
+  'discord',
+  'coinbase',
+  'robinhood',
+  'brex',
+  'plaid',
+  'gusto',
+  'asana',
+  'duolingo',
+  'reddit',
+  'pinterest',
+  'dropbox',
+  'hubspot',
+  'benchling',
+  'lattice',
+  'airtable',
+  'mongodb',
 ]

@@ -1,10 +1,8 @@
-import { JobTypeId } from './categories'
-
 export interface UserSettings {
   id: string
   user_id: string
+  companies: string[]
   categories: string[]
-  job_types: JobTypeId[]
   location: string
   email_notifications: boolean
   notification_email: string | null
@@ -14,7 +12,7 @@ export interface UserSettings {
 
 export interface Job {
   id: string
-  linkedin_id: string
+  external_id: string
   title: string
   company: string | null
   location: string | null
