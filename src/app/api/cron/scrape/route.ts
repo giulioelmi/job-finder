@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { fetchGreenhouseJobs, GreenhouseJob } from '@/lib/greenhouse'
 import { sendJobNotificationEmail } from '@/lib/email'
+import { ALL_GREENHOUSE_COMPANIES } from '@/lib/categories'
 
-// Cron runs every 5 minutes. Each run picks one unique company (from all users' settings),
-// fetches its Greenhouse jobs, and notifies matching users.
+// Cron runs every 5 minutes.
+// Builds the full set of companies to check (all for users with search_all_companies, plus
+// specific companies), fetches them in parallel (filtering to last hour), and notifies users.
 export async function GET(req: NextRequest) {
   const secret = req.headers.get('x-cron-secret') ?? req.nextUrl.searchParams.get('secret')
   if (secret !== process.env.CRON_SECRET) {
@@ -13,27 +15,33 @@ export async function GET(req: NextRequest) {
 
   const supabase = createServiceClient()
 
-  // Gather all unique company slugs from all users' settings
   const { data: allSettings } = await supabase
     .from('user_settings')
-    .select('companies')
+    .select('user_id, search_all_companies, companies, categories, job_types, location, email_notifications, notification_email')
 
-  const uniqueCompanies: string[] = []
-  for (const row of allSettings ?? []) {
-    for (const slug of (row.companies as string[] | null) ?? []) {
-      if (slug && !uniqueCompanies.includes(slug)) {
-        uniqueCompanies.push(slug)
+  if (!allSettings || allSettings.length === 0) {
+    return NextResponse.json({ success: true, message: 'No users configured.' })
+  }
+
+  // Build the unique set of companies to fetch this run
+  const companySet = new Set<string>()
+  const anySearchAll = allSettings.some(u => u.search_all_companies)
+  if (anySearchAll) {
+    ALL_GREENHOUSE_COMPANIES.forEach(c => companySet.add(c))
+  }
+  for (const row of allSettings) {
+    if (!row.search_all_companies) {
+      for (const slug of (row.companies as string[] | null) ?? []) {
+        if (slug) companySet.add(slug)
       }
     }
   }
 
-  if (uniqueCompanies.length === 0) {
+  const companiesToCheck = Array.from(companySet)
+
+  if (companiesToCheck.length === 0) {
     return NextResponse.json({ success: true, message: 'No companies configured by any user.' })
   }
-
-  // Rotate through companies based on current 5-minute slot
-  const slotIndex = Math.floor(Date.now() / (5 * 60 * 1000)) % uniqueCompanies.length
-  const currentCompany = uniqueCompanies[slotIndex]
 
   // Clean up notifications older than 24 hours
   await supabase
@@ -41,102 +49,106 @@ export async function GET(req: NextRequest) {
     .delete()
     .lt('notified_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
 
-  // Fetch all users who track this company
-  const { data: matchingUsers } = await supabase
-    .from('user_settings')
-    .select('user_id, companies, categories, location, email_notifications, notification_email')
-    .contains('companies', [currentCompany])
-    .eq('email_notifications', true)
-
-  if (!matchingUsers || matchingUsers.length === 0) {
-    return NextResponse.json({ success: true, company: currentCompany, message: 'No users tracking this company.' })
-  }
-
-  // Collect all keywords used by any user watching this company
-  const allKeywords = Array.from(
-    new Set(matchingUsers.flatMap(u => (u.categories as string[] | null) ?? []))
+  // Fetch all companies in parallel, only jobs updated in the last hour
+  const fetchResults = await Promise.allSettled(
+    companiesToCheck.map(slug => fetchGreenhouseJobs(slug, [], [], 1))
   )
 
-  const result = await fetchGreenhouseJobs(currentCompany, allKeywords)
-
-  if (!result.ok) {
-    console.error(`[cron] Greenhouse fetch failed for "${currentCompany}": ${result.message}`)
-    return NextResponse.json({ success: false, company: currentCompany, error: result.message })
+  // Build a flat map of external_id → GreenhouseJob for all fetched jobs
+  const allFetched = new Map<string, GreenhouseJob>()
+  const companyJobs = new Map<string, GreenhouseJob[]>() // slug → jobs
+  for (let i = 0; i < companiesToCheck.length; i++) {
+    const res = fetchResults[i]
+    if (res.status === 'rejected' || !res.value.ok) continue
+    const jobs = res.value.jobs
+    companyJobs.set(companiesToCheck[i], jobs)
+    for (const job of jobs) allFetched.set(job.external_id, job)
   }
 
-  const fetched = result.jobs
+  if (allFetched.size === 0) {
+    return NextResponse.json({ success: true, fetched: 0, message: 'No new jobs in the last hour.' })
+  }
+
+  // Upsert all fetched jobs into the central catalog
+  const jobsToUpsert = Array.from(allFetched.values()).map(j => ({
+    external_id: j.external_id,
+    title: j.title,
+    company: j.company,
+    location: j.location,
+    url: j.url,
+    posted_at: j.posted_at,
+  }))
+  await supabase.from('jobs').upsert(jobsToUpsert, { onConflict: 'external_id', ignoreDuplicates: true })
+
+  // Fetch DB rows for the upserted jobs
+  const { data: jobRows } = await supabase
+    .from('jobs')
+    .select('id, external_id, location, title')
+    .in('external_id', Array.from(allFetched.keys()))
+
+  if (!jobRows || jobRows.length === 0) {
+    return NextResponse.json({ success: true, fetched: allFetched.size, notifiedUsers: 0 })
+  }
+
+  // Notify each user
   let notifiedUsers = 0
+  for (const user of allSettings) {
+    const searchAll: boolean = user.search_all_companies ?? false
+    const userCompanies: string[] = searchAll ? ALL_GREENHOUSE_COMPANIES : (user.companies ?? [])
+    const userKeywords = ((user.categories as string[] | null) ?? []).map(k => k.toLowerCase())
+    const userJobTypes: string[] = user.job_types ?? ['internship', 'fulltime']
+    const userLocation = (user.location ?? '').trim().toLowerCase()
 
-  if (fetched.length > 0) {
-    // Upsert into central jobs catalog
-    await supabase
-      .from('jobs')
-      .upsert(
-        fetched.map(j => ({
-          external_id: j.external_id,
-          title: j.title,
-          company: j.company,
-          location: j.location,
-          url: j.url,
-          posted_at: j.posted_at,
-        })),
-        { onConflict: 'external_id', ignoreDuplicates: true }
-      )
+    // Filter job rows relevant to this user
+    const relevantRows = jobRows.filter(j => {
+      const job = allFetched.get(j.external_id)
+      if (!job) return false
+      if (!userCompanies.includes(job.company)) return false
 
-    // Fetch DB ids for the fetched jobs
-    const { data: jobRows } = await supabase
-      .from('jobs')
-      .select('id, external_id, location, title')
-      .in('external_id', fetched.map(j => j.external_id))
+      const titleLower = j.title.toLowerCase()
+      if (userKeywords.length > 0 && !userKeywords.some(kw => titleLower.includes(kw))) return false
+      if (userLocation && !j.location?.toLowerCase().includes(userLocation)) return false
 
-    if (jobRows && jobRows.length > 0) {
-      for (const user of matchingUsers) {
-        const userKeywords = ((user.categories as string[] | null) ?? []).map(k => k.toLowerCase())
-        const userLocation = (user.location ?? '').trim().toLowerCase()
+      // Job type filter
+      const isIntern = titleLower.includes('intern')
+      const wantIntern = userJobTypes.includes('internship')
+      const wantFull = userJobTypes.includes('fulltime')
+      if (wantIntern && !wantFull && !isIntern) return false
+      if (wantFull && !wantIntern && isIntern) return false
 
-        // Filter jobs by this user's keywords and location
-        const relevantRows = jobRows.filter(j => {
-          const titleMatch = userKeywords.length === 0 ||
-            userKeywords.some(kw => j.title.toLowerCase().includes(kw))
-          const locationMatch = !userLocation || j.location?.toLowerCase().includes(userLocation)
-          return titleMatch && locationMatch
-        })
+      return true
+    })
 
-        if (relevantRows.length === 0) continue
+    if (relevantRows.length === 0) continue
 
-        const { data: existingNotifs } = await supabase
-          .from('job_notifications')
-          .select('job_id')
-          .eq('user_id', user.user_id)
-          .in('job_id', relevantRows.map(j => j.id))
+    const { data: existingNotifs } = await supabase
+      .from('job_notifications')
+      .select('job_id')
+      .eq('user_id', user.user_id)
+      .in('job_id', relevantRows.map(j => j.id))
 
-        const notifiedIds = new Set((existingNotifs ?? []).map(n => n.job_id))
-        const newRows = relevantRows.filter(j => !notifiedIds.has(j.id))
+    const notifiedIds = new Set((existingNotifs ?? []).map(n => n.job_id))
+    const newRows = relevantRows.filter(j => !notifiedIds.has(j.id))
+    if (newRows.length === 0) continue
 
-        if (newRows.length === 0) continue
+    await supabase.from('job_notifications').insert(
+      newRows.map(j => ({ user_id: user.user_id, job_id: j.id }))
+    )
 
-        await supabase.from('job_notifications').insert(
-          newRows.map(j => ({ user_id: user.user_id, job_id: j.id }))
-        )
-
-        if (user.notification_email) {
-          const newJobDetails: GreenhouseJob[] = newRows
-            .map(jr => fetched.find(f => f.external_id === jr.external_id))
-            .filter((j): j is GreenhouseJob => !!j)
-          await sendJobNotificationEmail(user.notification_email, newJobDetails)
-        }
-
-        notifiedUsers++
-      }
+    if (user.email_notifications && user.notification_email) {
+      const newJobDetails = newRows
+        .map(jr => allFetched.get(jr.external_id))
+        .filter((j): j is GreenhouseJob => !!j)
+      await sendJobNotificationEmail(user.notification_email, newJobDetails)
     }
+
+    notifiedUsers++
   }
 
   return NextResponse.json({
     success: true,
-    slot: slotIndex,
-    company: currentCompany,
-    totalCompanies: uniqueCompanies.length,
-    fetched: fetched.length,
+    fetched: allFetched.size,
+    companiesChecked: companiesToCheck.length,
     notifiedUsers,
   })
 }

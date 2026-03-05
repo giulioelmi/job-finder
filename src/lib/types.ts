@@ -1,8 +1,10 @@
 export interface UserSettings {
   id: string
   user_id: string
+  search_all_companies: boolean
   companies: string[]
   categories: string[]
+  job_types: string[]
   location: string
   email_notifications: boolean
   notification_email: string | null

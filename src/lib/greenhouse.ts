@@ -19,12 +19,27 @@ interface GreenhouseApiJob {
   absolute_url: string
 }
 
-// Fetch all open jobs for a Greenhouse company board, filtered by keyword matches on title.
-// companySlug: the slug used in boards.greenhouse.io/{slug} (e.g. "airbnb", "stripe")
-// keywords: job title keywords to filter by (e.g. ["analyst", "engineer"]) — empty = return all
+// Returns true if the job title matches the requested job types.
+// Heuristic: titles containing "intern" are internships; everything else is full-time.
+function matchesJobType(title: string, jobTypes: string[]): boolean {
+  if (jobTypes.length === 0 || (jobTypes.includes('internship') && jobTypes.includes('fulltime'))) {
+    return true
+  }
+  const isIntern = title.toLowerCase().includes('intern')
+  if (jobTypes.includes('internship') && !jobTypes.includes('fulltime')) return isIntern
+  if (jobTypes.includes('fulltime') && !jobTypes.includes('internship')) return !isIntern
+  return true
+}
+
+// Fetch open jobs for a Greenhouse company board.
+//   keywords  – filter by job title containing any keyword (empty = all)
+//   jobTypes  – ['internship'], ['fulltime'], or both/empty = all
+//   hoursBack – only include jobs whose updated_at is within this many hours (undefined = no filter)
 export async function fetchGreenhouseJobs(
   companySlug: string,
-  keywords: string[]
+  keywords: string[],
+  jobTypes: string[] = [],
+  hoursBack?: number
 ): Promise<FetchResult> {
   const url = `https://boards-api.greenhouse.io/v1/boards/${companySlug}/jobs`
 
@@ -50,19 +65,25 @@ export async function fetchGreenhouseJobs(
     return { ok: false, reason: 'error', message: `Failed to parse Greenhouse response for "${companySlug}".` }
   }
 
-  let jobs: GreenhouseJob[] = (data.jobs ?? []).map(job => ({
-    external_id: `gh_${companySlug}_${job.id}`,
-    title: job.title,
-    company: companySlug,
-    location: job.location?.name || null,
-    url: job.absolute_url,
-    posted_at: job.updated_at || null,
-  }))
+  const cutoff = hoursBack ? new Date(Date.now() - hoursBack * 60 * 60 * 1000) : null
+
+  let jobs: GreenhouseJob[] = (data.jobs ?? [])
+    .filter(job => !cutoff || !job.updated_at || new Date(job.updated_at) >= cutoff)
+    .map(job => ({
+      external_id: `gh_${companySlug}_${job.id}`,
+      title: job.title,
+      company: companySlug,
+      location: job.location?.name || null,
+      url: job.absolute_url,
+      posted_at: job.updated_at || null,
+    }))
 
   if (keywords.length > 0) {
     const lower = keywords.map(k => k.toLowerCase())
     jobs = jobs.filter(job => lower.some(kw => job.title.toLowerCase().includes(kw)))
   }
+
+  jobs = jobs.filter(job => matchesJobType(job.title, jobTypes))
 
   return { ok: true, jobs }
 }

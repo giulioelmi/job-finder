@@ -28,27 +28,67 @@ export const JOB_TITLE_SUGGESTIONS = [
   'Solutions Architect',
 ]
 
-// Popular companies that use Greenhouse — users enter the board slug
-// Find a company's slug at: boards.greenhouse.io/{slug}
-export const COMPANY_SUGGESTIONS = [
+// Job type options (mirrors the internship/fulltime toggle in the UI)
+export const JOB_TYPES = [
+  { id: 'internship', label: 'Internship' },
+  { id: 'fulltime',   label: 'Full-time' },
+] as const
+
+export type JobTypeId = (typeof JOB_TYPES)[number]['id']
+
+// Full list of companies known to use Greenhouse, searched when "all companies" mode is on.
+// Slugs match boards.greenhouse.io/{slug}
+export const ALL_GREENHOUSE_COMPANIES = [
   'airbnb',
-  'stripe',
-  'notion',
-  'figma',
-  'discord',
-  'coinbase',
-  'robinhood',
-  'brex',
-  'plaid',
-  'gusto',
+  'amplitude',
+  'anthropic',
   'asana',
-  'duolingo',
-  'reddit',
-  'pinterest',
-  'dropbox',
-  'hubspot',
   'benchling',
+  'brex',
+  'canva',
+  'cloudflare',
+  'coinbase',
+  'datadog',
+  'databricks',
+  'discord',
+  'doordash',
+  'dropbox',
+  'duolingo',
+  'figma',
+  'fivetran',
+  'gitlab',
+  'gusto',
+  'hashicorp',
+  'hubspot',
+  'intercom',
   'lattice',
-  'airtable',
+  'launchdarkly',
+  'linear',
+  'loom',
+  'lyft',
+  'mercury',
+  'miro',
+  'mixpanel',
   'mongodb',
+  'notion',
+  'pagerduty',
+  'palantir',
+  'pinterest',
+  'plaid',
+  'ramp',
+  'reddit',
+  'retool',
+  'rippling',
+  'robinhood',
+  'scale',
+  'segment',
+  'snowflake',
+  'stripe',
+  'twilio',
+  'verkada',
+  'zendesk',
+  'zoom',
 ]
+
+// Subset shown as autocomplete suggestions in "specific companies" mode
+export const COMPANY_SUGGESTIONS = ALL_GREENHOUSE_COMPANIES

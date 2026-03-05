@@ -1,23 +1,30 @@
+import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { RunScraperButton } from './run-scraper-button'
 import { JobListClient } from './job-list-client'
+import { TimeFilter } from './time-filter'
 import { Bell } from 'lucide-react'
 
-export default async function JobsPage() {
+export default async function JobsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ hours?: string }>
+}) {
+  const { hours: hoursStr } = await searchParams
+  const hours = Math.min(24, Math.max(1, parseInt(hoursStr ?? '24', 10) || 24))
+
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  // Jobs the user was notified about in the last 24 hours
   const { data: notifications } = await supabase
     .from('job_notifications')
     .select('notified_at, jobs(id, title, company, location, url, found_at, posted_at)')
     .eq('user_id', user!.id)
-    .gte('notified_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+    .gte('notified_at', new Date(Date.now() - hours * 60 * 60 * 1000).toISOString())
     .order('notified_at', { ascending: false })
 
-  // Jobs the user has already applied to (for button state)
   const { data: existingApps } = await supabase
     .from('applications')
     .select('job_id')
@@ -28,10 +35,10 @@ export default async function JobsPage() {
 
   return (
     <div className="p-8 max-w-4xl mx-auto">
-      <div className="mb-8 flex items-center justify-between">
+      <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Recent Jobs</h1>
-          <p className="text-gray-500 mt-1">Jobs found in the last 24 hours matching your preferences</p>
+          <p className="text-gray-500 mt-1">Jobs matching your preferences from the last {hours}h</p>
         </div>
         <div className="flex items-center gap-3">
           <RunScraperButton />
@@ -41,14 +48,21 @@ export default async function JobsPage() {
         </div>
       </div>
 
+      <div className="mb-6">
+        <Suspense>
+          <TimeFilter current={hours} />
+        </Suspense>
+      </div>
+
       {jobs.length === 0 ? (
         <Card>
           <CardContent className="py-16 text-center">
             <Bell className="w-12 h-12 text-gray-300 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-gray-700 mb-2">No jobs yet</h3>
             <p className="text-gray-500 text-sm max-w-sm mx-auto">
-              The scraper runs every 30 minutes. Make sure you&apos;ve configured your job alerts in{' '}
-              <a href="/settings" className="text-blue-600 hover:underline">Settings</a>.
+              Jobs are fetched every 5 minutes. Make sure you&apos;ve configured your alerts in{' '}
+              <a href="/settings" className="text-blue-600 hover:underline">Settings</a>,
+              or click &ldquo;Fetch Now&rdquo; above.
             </p>
           </CardContent>
         </Card>

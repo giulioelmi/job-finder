@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { fetchGreenhouseJobs, GreenhouseJob } from '@/lib/greenhouse'
 import { sendJobNotificationEmail } from '@/lib/email'
+import { ALL_GREENHOUSE_COMPANIES } from '@/lib/categories'
 
-// Manual trigger — fetches all companies in the user's list and filters by their keywords
+// Manual trigger — fetches companies based on user settings, filters by keywords and job type.
+// Only includes jobs updated within the last hour (same as cron behaviour).
 export async function POST(_req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -17,8 +19,10 @@ export async function POST(_req: NextRequest) {
     .eq('user_id', user.id)
     .single()
 
-  const companies: string[] = settings?.companies ?? []
+  const searchAll: boolean = settings?.search_all_companies ?? false
+  const companies: string[] = searchAll ? ALL_GREENHOUSE_COMPANIES : (settings?.companies ?? [])
   const keywords: string[] = settings?.categories ?? []
+  const jobTypes: string[] = settings?.job_types ?? ['internship', 'fulltime']
 
   if (companies.length === 0) {
     return NextResponse.json(
@@ -32,20 +36,24 @@ export async function POST(_req: NextRequest) {
   let totalNew = 0
   const allNewJobs: GreenhouseJob[] = []
 
-  for (const companySlug of companies) {
-    const result = await fetchGreenhouseJobs(companySlug, keywords)
+  // Fetch all companies in parallel
+  const results = await Promise.allSettled(
+    companies.map(slug => fetchGreenhouseJobs(slug, keywords, jobTypes, 1))
+  )
 
-    if (!result.ok) {
-      console.error(`[trigger] Greenhouse fetch failed for "${companySlug}": ${result.message}`)
+  for (let i = 0; i < companies.length; i++) {
+    const res = results[i]
+    if (res.status === 'rejected' || !res.value.ok) {
+      const msg = res.status === 'rejected' ? res.reason : (res.value as { ok: false; message: string }).message
+      console.error(`[trigger] Greenhouse fetch failed for "${companies[i]}": ${msg}`)
       continue
     }
 
-    const fetched = result.jobs
+    const fetched = res.value.jobs
     if (fetched.length === 0) continue
 
     totalFound += fetched.length
 
-    // Upsert jobs into central catalog
     await serviceClient
       .from('jobs')
       .upsert(
@@ -60,7 +68,6 @@ export async function POST(_req: NextRequest) {
         { onConflict: 'external_id', ignoreDuplicates: true }
       )
 
-    // Fetch DB ids
     const { data: jobRows } = await serviceClient
       .from('jobs')
       .select('id, external_id, location')
@@ -68,14 +75,12 @@ export async function POST(_req: NextRequest) {
 
     if (!jobRows) continue
 
-    // Apply location filter
     const relevantJobRows = userLocation
       ? jobRows.filter(j => j.location?.toLowerCase().includes(userLocation))
       : jobRows
 
     if (relevantJobRows.length === 0) continue
 
-    // Find new (unnotified) jobs for this user
     const { data: existingNotifs } = await serviceClient
       .from('job_notifications')
       .select('job_id')
@@ -99,7 +104,6 @@ export async function POST(_req: NextRequest) {
     )
   }
 
-  // Send email with all new jobs
   if (allNewJobs.length > 0 && settings?.email_notifications) {
     const email = settings.notification_email ?? user.email
     if (email) await sendJobNotificationEmail(email, allNewJobs)
@@ -109,7 +113,7 @@ export async function POST(_req: NextRequest) {
     ? `Found ${totalNew} new job(s) out of ${totalFound} fetched.`
     : totalFound > 0
       ? `Fetched ${totalFound} job(s) — all already seen.`
-      : 'No jobs returned from Greenhouse.'
+      : 'No jobs updated in the last hour across tracked companies.'
 
   return NextResponse.json({ found: totalFound, new: totalNew, message })
 }

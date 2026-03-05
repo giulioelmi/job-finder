@@ -5,8 +5,10 @@ create extension if not exists "uuid-ossp";
 create table if not exists user_settings (
   id uuid primary key default uuid_generate_v4(),
   user_id uuid references auth.users(id) on delete cascade unique,
+  search_all_companies boolean default false,
   companies text[] default array[]::text[],
   categories text[] default array['Data Scientist', 'Data Analyst'],
+  job_types text[] default array['internship', 'fulltime'],
   location text default '',
   email_notifications boolean default true,
   notification_email text,
