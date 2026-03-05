@@ -37,7 +37,7 @@ export async function POST(_req: NextRequest) {
   const allNewJobs: GreenhouseJob[] = []
 
   // Fetch jobs from last 7 days, filtered by user's keywords and job types
-  const createdAfter = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+  const createdAfter = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000)
   const results = await Promise.allSettled(
     companies.map(slug => fetchGreenhouseJobs(slug, keywords, jobTypes, createdAfter))
   )
