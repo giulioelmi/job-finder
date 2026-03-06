@@ -4,6 +4,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { JobListClient } from './job-list-client'
 import { TimeFilter } from './time-filter'
+import { SyncButton } from './sync-button'
 import { Bell } from 'lucide-react'
 
 export default async function JobsPage({
@@ -54,9 +55,12 @@ export default async function JobsPage({
           <h1 className="text-2xl font-bold text-gray-900">Recent Jobs</h1>
           <p className="text-gray-500 mt-1">{all ? 'All jobs matching your preferences' : `Jobs matching your preferences from the last ${hours}h`}</p>
         </div>
-        <Badge className="bg-blue-100 text-blue-700 text-sm px-3 py-1">
-          {jobs.length} job{jobs.length !== 1 ? 's' : ''}
-        </Badge>
+        <div className="flex items-center gap-3">
+          <SyncButton />
+          <Badge className="bg-blue-100 text-blue-700 text-sm px-3 py-1">
+            {jobs.length} job{jobs.length !== 1 ? 's' : ''}
+          </Badge>
+        </div>
       </div>
 
       <div className="mb-6">
