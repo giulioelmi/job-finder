@@ -1,7 +1,8 @@
 export interface GreenhouseJob {
   external_id: string   // "gh_{companySlug}_{jobId}"
   title: string
-  company: string       // company slug
+  company: string       // display name from Greenhouse API (or slug as fallback)
+  slug: string          // company slug used in the Greenhouse board URL
   location: string | null
   url: string
   posted_at: string | null
@@ -75,6 +76,7 @@ export async function fetchGreenhouseJobs(
       external_id: `gh_${companySlug}_${job.id}`,
       title: job.title,
       company: job.company_name || companySlug,
+      slug: companySlug,
       location: job.location?.name || null,
       url: job.absolute_url,
       posted_at: job.first_published || job.updated_at || null,

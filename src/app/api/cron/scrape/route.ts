@@ -112,7 +112,7 @@ export async function GET(req: NextRequest) {
     const relevantRows = jobRows.filter(j => {
       const job = allFetched.get(j.external_id)
       if (!job) return false
-      if (!userCompanies.includes(job.company)) return false
+      if (!userCompanies.includes(job.slug)) return false
 
       const titleLower = j.title.toLowerCase()
       if (userKeywords.length > 0 && !userKeywords.some(kw => titleLower.includes(kw))) return false
