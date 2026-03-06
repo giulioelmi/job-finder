@@ -4,7 +4,6 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { JobListClient } from './job-list-client'
 import { TimeFilter } from './time-filter'
-import { SyncButton } from './sync-button'
 import { Bell } from 'lucide-react'
 
 export default async function JobsPage({
@@ -13,18 +12,18 @@ export default async function JobsPage({
   searchParams: Promise<{ hours?: string }>
 }) {
   const { hours: hoursStr } = await searchParams
-  const all = hoursStr === '0'
-  const hours = all ? 0 : Math.min(168, Math.max(1, parseInt(hoursStr ?? '24', 10) || 24))
+  const hours = Math.min(168, Math.max(1, parseInt(hoursStr ?? '24', 10) || 24))
+  const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString()
 
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const notifQuery = supabase
+  const { data: notifications } = await supabase
     .from('job_notifications')
     .select('id, notified_at, jobs(id, title, company, location, url, found_at, posted_at)')
     .eq('user_id', user!.id)
-  if (!all) notifQuery.gte('notified_at', new Date(Date.now() - hours * 60 * 60 * 1000).toISOString())
-  const { data: notifications } = await notifQuery
+    .gte('notified_at', cutoff)
+    .order('notified_at', { ascending: false })
 
   const { data: existingApps } = await supabase
     .from('applications')
@@ -32,40 +31,23 @@ export default async function JobsPage({
     .eq('user_id', user!.id)
 
   const appliedJobIds = new Set((existingApps ?? []).map(a => a.job_id))
-
-  // Filter by posted_at and sort newest first
-  const cutoff = all ? null : new Date(Date.now() - hours * 60 * 60 * 1000)
-  const jobs = (notifications ?? [])
-    .filter(n => {
-      const postedAt = (n.jobs as any)?.posted_at
-      if (postedAt == null) return false
-      if (cutoff) return new Date(postedAt) >= cutoff
-      return true
-    })
-    .sort((a, b) => {
-      const aT = new Date((a.jobs as any)?.posted_at ?? 0).getTime()
-      const bT = new Date((b.jobs as any)?.posted_at ?? 0).getTime()
-      return bT - aT
-    })
+  const jobs = notifications ?? []
 
   return (
     <div className="p-8 max-w-4xl mx-auto">
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Recent Jobs</h1>
-          <p className="text-gray-500 mt-1">{all ? 'All jobs matching your preferences' : `Jobs matching your preferences from the last ${hours}h`}</p>
+          <p className="text-gray-500 mt-1">Jobs matching your preferences from the last {hours < 24 ? `${hours}h` : hours === 24 ? '1 day' : '7 days'}</p>
         </div>
-        <div className="flex items-center gap-3">
-          <SyncButton />
-          <Badge className="bg-blue-100 text-blue-700 text-sm px-3 py-1">
-            {jobs.length} job{jobs.length !== 1 ? 's' : ''}
-          </Badge>
-        </div>
+        <Badge className="bg-blue-100 text-blue-700 text-sm px-3 py-1">
+          {jobs.length} job{jobs.length !== 1 ? 's' : ''}
+        </Badge>
       </div>
 
       <div className="mb-6">
         <Suspense>
-          <TimeFilter current={hours} all={all} />
+          <TimeFilter current={hours} />
         </Suspense>
       </div>
 

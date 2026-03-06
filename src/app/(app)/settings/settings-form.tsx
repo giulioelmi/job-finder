@@ -134,6 +134,8 @@ export function SettingsForm({ userId, userEmail, initialSettings }: SettingsFor
     } else {
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
+      // Backfill notifications from existing DB jobs in background
+      fetch('/api/backfill', { method: 'POST' }).catch(() => null)
     }
   }
 
