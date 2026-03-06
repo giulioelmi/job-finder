@@ -18,11 +18,13 @@ export default async function JobsPage({
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
+  // Fetch all notifications within the 7-day window, then filter by posted_at in JS
+  const sevenDaysCutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
   const { data: notifications } = await supabase
     .from('job_notifications')
     .select('id, notified_at, jobs(id, title, company, location, url, found_at, posted_at)')
     .eq('user_id', user!.id)
-    .gte('notified_at', cutoff)
+    .gte('notified_at', sevenDaysCutoff)
     .order('notified_at', { ascending: false })
 
   const { data: existingApps } = await supabase
@@ -31,7 +33,13 @@ export default async function JobsPage({
     .eq('user_id', user!.id)
 
   const appliedJobIds = new Set((existingApps ?? []).map(a => a.job_id))
-  const jobs = notifications ?? []
+
+  // Filter by posted_at so the time tabs reflect when the job was actually posted
+  const jobs = (notifications ?? []).filter(n => {
+    const job = n.jobs as { posted_at?: string | null; found_at?: string } | null
+    const timestamp = job?.posted_at ?? job?.found_at ?? n.notified_at
+    return new Date(timestamp) >= new Date(cutoff)
+  })
 
   return (
     <div className="p-8 max-w-4xl mx-auto">
