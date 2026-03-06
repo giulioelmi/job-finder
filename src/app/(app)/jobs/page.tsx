@@ -34,12 +34,21 @@ export default async function JobsPage({
 
   const appliedJobIds = new Set((existingApps ?? []).map(a => a.job_id))
 
-  // Filter by posted_at so the time tabs reflect when the job was actually posted
-  const jobs = (notifications ?? []).filter(n => {
-    const job = n.jobs as { posted_at?: string | null; found_at?: string } | null
-    const timestamp = job?.posted_at ?? job?.found_at ?? n.notified_at
-    return new Date(timestamp) >= new Date(cutoff)
-  })
+  // Filter by posted_at so the time tabs reflect when the job was actually posted,
+  // then sort newest-first by the same timestamp
+  const jobs = (notifications ?? [])
+    .filter(n => {
+      const job = n.jobs as { posted_at?: string | null; found_at?: string } | null
+      const timestamp = job?.posted_at ?? job?.found_at ?? n.notified_at
+      return new Date(timestamp) >= new Date(cutoff)
+    })
+    .sort((a, b) => {
+      const getTs = (n: typeof a) => {
+        const job = n.jobs as { posted_at?: string | null; found_at?: string } | null
+        return new Date(job?.posted_at ?? job?.found_at ?? n.notified_at).getTime()
+      }
+      return getTs(b) - getTs(a)
+    })
 
   return (
     <div className="p-8 max-w-4xl mx-auto">
