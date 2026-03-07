@@ -62,15 +62,17 @@ export function Sidebar({ userEmail }: SidebarProps) {
         <div className="px-3 py-2 mb-1">
           <p className="text-xs text-gray-400 truncate">{userEmail || 'user@example.com'}</p>
         </div>
-        <form action="/auth/signout" method="post">
-          <button
-            type="submit"
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-400 hover:text-white hover:bg-gray-800 transition-colors w-full"
-          >
-            <LogOut className="w-4 h-4" />
-            Sign out
-          </button>
-        </form>
+        <button
+          type="button"
+          onClick={async () => {
+            await fetch('/auth/signout', { method: 'POST' })
+            window.location.href = '/login'
+          }}
+          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-400 hover:text-white hover:bg-gray-800 transition-colors w-full"
+        >
+          <LogOut className="w-4 h-4" />
+          Sign out
+        </button>
       </div>
     </div>
   )
