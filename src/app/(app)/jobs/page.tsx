@@ -18,11 +18,24 @@ export default async function JobsPage({
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  // Fetch all notifications within the 7-day window, then filter by posted_at in JS
+  // Fetch current user settings to re-apply filters on display
+  const { data: settings } = await supabase
+    .from('user_settings')
+    .select('search_all_companies, companies, categories, job_types, location')
+    .eq('user_id', user!.id)
+    .single()
+
+  const searchAll: boolean = settings?.search_all_companies ?? false
+  const userCompanies: string[] = searchAll ? [] : ((settings?.companies ?? []) as string[]).map((c: string) => c.toLowerCase())
+  const userKeywords: string[] = ((settings?.categories ?? []) as string[]).map((k: string) => k.toLowerCase())
+  const userJobTypes: string[] = (settings?.job_types as string[] | null) ?? ['internship', 'fulltime']
+  const userLocation = (settings?.location ?? '').trim().toLowerCase()
+
+  // Fetch all notifications within the 7-day window, then filter in JS
   const sevenDaysCutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
   const { data: notifications } = await supabase
     .from('job_notifications')
-    .select('id, notified_at, jobs(id, title, company, location, url, found_at, posted_at)')
+    .select('id, notified_at, jobs(id, external_id, title, company, location, url, found_at, posted_at)')
     .eq('user_id', user!.id)
     .gte('notified_at', sevenDaysCutoff)
     .order('notified_at', { ascending: false })
@@ -34,13 +47,39 @@ export default async function JobsPage({
 
   const appliedJobIds = new Set((existingApps ?? []).map(a => a.job_id))
 
-  // Filter by posted_at so the time tabs reflect when the job was actually posted,
-  // then sort newest-first by the same timestamp
+  // Filter by current settings + time window, then sort newest-first
   const jobs = (notifications ?? [])
     .filter(n => {
-      const job = n.jobs as { posted_at?: string | null; found_at?: string } | null
-      const timestamp = job?.posted_at ?? job?.found_at ?? n.notified_at
-      return new Date(timestamp) >= new Date(cutoff)
+      const job = n.jobs as { external_id?: string; title?: string; company?: string; location?: string | null; posted_at?: string | null; found_at?: string } | null
+      if (!job) return false
+
+      // Time filter
+      const timestamp = job.posted_at ?? job.found_at ?? n.notified_at
+      if (new Date(timestamp) < new Date(cutoff)) return false
+
+      const titleLower = (job.title ?? '').toLowerCase()
+
+      // Keyword filter (skip if no keywords = show all)
+      if (userKeywords.length > 0 && !userKeywords.some(kw => titleLower.includes(kw))) return false
+
+      // Company filter — extract slug from external_id ("gh_{slug}_{numericId}")
+      if (!searchAll && userCompanies.length > 0) {
+        const parts = (job.external_id ?? '').split('_')
+        const slug = parts.slice(1, -1).join('_').toLowerCase()
+        if (!userCompanies.includes(slug)) return false
+      }
+
+      // Job type filter
+      const isIntern = titleLower.includes('intern')
+      const wantIntern = userJobTypes.includes('internship')
+      const wantFull = userJobTypes.includes('fulltime')
+      if (wantIntern && !wantFull && !isIntern) return false
+      if (wantFull && !wantIntern && isIntern) return false
+
+      // Location filter
+      if (userLocation && !job.location?.toLowerCase().includes(userLocation)) return false
+
+      return true
     })
     .sort((a, b) => {
       const getTs = (n: typeof a) => {
