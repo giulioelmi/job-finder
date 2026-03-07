@@ -13,10 +13,10 @@ export async function POST(req: NextRequest) {
   const service = createServiceClient()
 
   // Insert the job (service role, since jobs table requires service role for inserts)
-  const linkedin_id = `manual-${randomUUID()}`
+  const external_id = `manual-${randomUUID()}`
   const { data: job, error: jobError } = await service
     .from('jobs')
-    .insert({ linkedin_id, title, company: company || null, location: location || null, url: url || '' })
+    .insert({ external_id, title, company: company || null, location: location || null, url: url || '' })
     .select('id')
     .single()
 

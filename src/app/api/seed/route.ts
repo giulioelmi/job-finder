@@ -3,7 +3,7 @@ import { createClient, createServiceClient } from '@/lib/supabase/server'
 
 const SAMPLE_JOBS = [
   {
-    linkedin_id: 'sample-001',
+    external_id: 'sample-001',
     title: 'Product Manager Intern',
     company: 'Stripe',
     location: 'San Francisco, CA',
@@ -11,7 +11,7 @@ const SAMPLE_JOBS = [
     posted_at: new Date().toISOString(),
   },
   {
-    linkedin_id: 'sample-002',
+    external_id: 'sample-002',
     title: 'Data Analyst Intern',
     company: 'Airbnb',
     location: 'Remote',
@@ -19,7 +19,7 @@ const SAMPLE_JOBS = [
     posted_at: new Date().toISOString(),
   },
   {
-    linkedin_id: 'sample-003',
+    external_id: 'sample-003',
     title: 'Product Intern',
     company: 'Notion',
     location: 'New York, NY',
@@ -36,13 +36,13 @@ export async function POST() {
   const service = createServiceClient()
 
   // Insert sample jobs
-  await service.from('jobs').upsert(SAMPLE_JOBS, { onConflict: 'linkedin_id', ignoreDuplicates: true })
+  await service.from('jobs').upsert(SAMPLE_JOBS, { onConflict: 'external_id', ignoreDuplicates: true })
 
   // Fetch their IDs
   const { data: jobs } = await service
     .from('jobs')
     .select('id')
-    .in('linkedin_id', SAMPLE_JOBS.map(j => j.linkedin_id))
+    .in('external_id', SAMPLE_JOBS.map(j => j.external_id))
 
   if (!jobs) return NextResponse.json({ error: 'Failed to insert jobs' }, { status: 500 })
 
