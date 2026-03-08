@@ -27,7 +27,8 @@ export async function POST() {
     .single()
 
   const searchAll: boolean = settings?.search_all_companies ?? false
-  const userCompanies: string[] = (settings?.companies ?? []).map((c: string) => c.toLowerCase())
+  const userGhCompanies: string[] = (settings?.companies ?? []).map((c: string) => c.toLowerCase())
+  const userAshbyCompanies: string[] = (settings?.ashby_companies ?? []).map((c: string) => c.toLowerCase())
   const keywords: string[] = ((settings?.categories ?? []) as string[]).map((k: string) => k.toLowerCase())
   const jobTypes: string[] = settings?.job_types ?? ['internship', 'fulltime']
   const userLocation = (settings?.location ?? '').trim().toLowerCase()
@@ -47,10 +48,16 @@ export async function POST() {
   // Apply user filters
   const matching = jobs.filter(job => {
     // Company filter (skip when searching all)
-    if (!searchAll && userCompanies.length > 0) {
-      const companyLower = (job.company ?? '').toLowerCase()
-      const slugFromId = job.external_id?.split('_')[1]?.toLowerCase() ?? ''
-      if (!userCompanies.includes(companyLower) && !userCompanies.includes(slugFromId)) return false
+    if (!searchAll) {
+      // external_id format: "gh_{slug}_{id}" or "ashby_{slug}_{id}"
+      const parts = (job.external_id ?? '').split('_')
+      const source = parts[0]  // "gh" or "ashby"
+      const slugFromId = parts[1]?.toLowerCase() ?? ''
+      if (source === 'ashby') {
+        if (!userAshbyCompanies.includes(slugFromId)) return false
+      } else {
+        if (!userGhCompanies.includes(slugFromId)) return false
+      }
     }
 
     const titleLower = job.title.toLowerCase()

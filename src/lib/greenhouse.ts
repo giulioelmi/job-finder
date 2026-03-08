@@ -1,4 +1,5 @@
 export interface GreenhouseJob {
+  source: 'greenhouse'
   external_id: string   // "gh_{companySlug}_{jobId}"
   title: string
   company: string       // display name from Greenhouse API (or slug as fallback)
@@ -73,6 +74,7 @@ export async function fetchGreenhouseJobs(
 
   let jobs: GreenhouseJob[] = (data.jobs ?? [])
     .map(job => ({
+      source: 'greenhouse' as const,
       external_id: `gh_${companySlug}_${job.id}`,
       title: job.title,
       company: job.company_name || companySlug,

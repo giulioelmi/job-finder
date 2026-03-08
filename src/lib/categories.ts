@@ -105,3 +105,14 @@ export const ALL_GREENHOUSE_COMPANIES = [
 
 // Subset shown as autocomplete suggestions in "specific companies" mode
 export const COMPANY_SUGGESTIONS = ALL_GREENHOUSE_COMPANIES
+
+// Full list of companies known to use Ashby, searched when "all companies" mode is on.
+// Slugs match api.ashbyhq.com/posting-api/job-board/{slug}
+// Slugs that return 404 are skipped automatically at runtime — safe to add candidates.
+export const ALL_ASHBY_COMPANIES: string[] = [
+  // Populated via the ashby_slugs table in Supabase.
+  // Add slugs by uploading a CSV with: node scripts/import-slugs.mjs --table ashby_slugs <path-to-csv>
+]
+
+// Subset shown as autocomplete suggestions in "specific Ashby companies" mode
+export const ASHBY_COMPANY_SUGGESTIONS = ALL_ASHBY_COMPANIES
