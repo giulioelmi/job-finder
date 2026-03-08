@@ -9,7 +9,7 @@ import type { Metadata } from 'next'
 export const metadata: Metadata = {
   title: 'VacanSea — Automated Job Alerts for Tech Roles',
   description:
-    'VacanSea scans 60+ top tech companies on Greenhouse every 30 minutes and emails you when matching jobs appear. Track applications, filter by role and company, and never miss an opening.',
+    'VacanSea scans 60+ top tech companies on Greenhouse every 20 minutes and emails you when matching jobs appear. Track applications, filter by role and company, and never miss an opening.',
   keywords: [
     'job alert tool',
     'automated job notifications',
@@ -37,14 +37,14 @@ const jsonLd = {
       applicationCategory: 'BusinessApplication',
       operatingSystem: 'Web',
       description:
-        'VacanSea is a free job alert and application tracking tool that monitors Greenhouse job boards at 60+ top tech companies every 30 minutes. Users configure job title keywords, companies, and job types (internship or full-time) and receive email notifications when new matching positions are posted.',
+        'VacanSea is a free job alert and application tracking tool that monitors Greenhouse job boards at 60+ top tech companies every 20 minutes. Users configure job title keywords, companies, and job types (internship or full-time) and receive email notifications when new matching positions are posted.',
       offers: {
         '@type': 'Offer',
         price: '0',
         priceCurrency: 'USD',
       },
       featureList: [
-        'Automated job scanning every 30 minutes',
+        'Automated job scanning every 20 minutes',
         'Email alerts for new job postings',
         'Supports 60+ top tech companies via Greenhouse',
         'Filter by job title keyword',
@@ -61,7 +61,7 @@ const jsonLd = {
           name: 'What is VacanSea?',
           acceptedAnswer: {
             '@type': 'Answer',
-            text: 'VacanSea is a free web app that automatically monitors job boards at top tech companies and sends you email alerts when new matching jobs are posted. It uses the Greenhouse recruiting platform API to scan 60+ companies every 30 minutes.',
+            text: 'VacanSea is a free web app that automatically monitors job boards at top tech companies and sends you email alerts when new matching jobs are posted. It uses the Greenhouse recruiting platform API to scan 60+ companies every 20 minutes.',
           },
         },
         {
@@ -77,7 +77,7 @@ const jsonLd = {
           name: 'How often does VacanSea check for new jobs?',
           acceptedAnswer: {
             '@type': 'Answer',
-            text: 'VacanSea scans all configured companies every 30 minutes and sends email notifications immediately when new matching jobs are found.',
+            text: 'VacanSea scans all configured companies every 20 minutes and sends email notifications immediately when new matching jobs are found.',
           },
         },
         {
@@ -112,7 +112,7 @@ const jsonLd = {
 const features = [
   {
     icon: Zap,
-    title: 'Scans every 30 minutes',
+    title: 'Scans every 20 minutes',
     description: 'Greenhouse job boards at 60+ top tech companies are checked automatically, around the clock.',
   },
   {
@@ -157,7 +157,7 @@ const steps = [
   {
     number: '02',
     title: 'We scan automatically',
-    description: 'VacanSea polls every company\'s Greenhouse job board every 30 minutes — no action needed from you.',
+    description: 'VacanSea polls every company\'s Greenhouse job board every 20 minutes — no action needed from you.',
   },
   {
     number: '03',
@@ -173,7 +173,7 @@ const faqs = [
   },
   {
     q: 'How often are jobs checked?',
-    a: 'Every 30 minutes, continuously. New jobs are sent to you immediately after being detected.',
+    a: 'Every 20 minutes, continuously. New jobs are sent to you immediately after being detected.',
   },
   {
     q: 'What roles can I track?',
@@ -233,13 +233,13 @@ export default async function LandingPage() {
         <section className="max-w-5xl mx-auto px-6 pt-20 pb-16 text-center">
           <div className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 text-xs font-medium px-3 py-1.5 rounded-full mb-6">
             <Zap className="w-3 h-3" />
-            Scans 60+ companies every 30 minutes
+            Scans 60+ companies every 20 minutes
           </div>
           <h1 className="text-4xl sm:text-5xl font-bold text-gray-900 leading-tight mb-5">
             Never miss a job opening<br className="hidden sm:block" /> at top tech companies
           </h1>
           <p className="text-lg text-gray-500 max-w-2xl mx-auto mb-8">
-            VacanSea monitors Greenhouse job boards at Anthropic, Stripe, OpenAI, Databricks, and 60+ more — every 30 minutes — and emails you the moment a matching role appears.
+            VacanSea monitors Greenhouse job boards at Anthropic, Stripe, OpenAI, Databricks, and 60+ more — every 20 minutes — and emails you the moment a matching role appears.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link
@@ -321,7 +321,7 @@ export default async function LandingPage() {
         <section className="bg-blue-600 py-16 text-center">
           <h2 className="text-2xl font-bold text-white mb-3">Start tracking jobs today</h2>
           <p className="text-blue-200 text-sm mb-7 max-w-md mx-auto">
-            Free, no credit card required. Get your first email alert within 30 minutes of signing up.
+            Free, no credit card required. Get your first email alert within 20 minutes of signing up.
           </p>
           <Link
             href="/signup"
