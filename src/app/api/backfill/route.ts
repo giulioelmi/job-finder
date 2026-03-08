@@ -47,6 +47,9 @@ export async function POST() {
 
   // Apply user filters
   const matching = jobs.filter(job => {
+    // Exclude manually added jobs — they belong in applications, not notifications
+    if ((job.external_id ?? '').startsWith('manual-')) return false
+
     // Company filter (skip when searching all)
     if (!searchAll) {
       // external_id format: "gh_{slug}_{id}" or "ashby_{slug}_{id}"
