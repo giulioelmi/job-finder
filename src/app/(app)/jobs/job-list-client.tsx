@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Card, CardContent } from '@/components/ui/card'
+import { CardContent } from '@/components/ui/card'
 import { MapPin, Building2, Clock, ExternalLink, Eye, Trash2, CheckCircle } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 
@@ -81,9 +81,9 @@ export function JobListClient({ jobs, userId, appliedJobIds: initialViewed }: Jo
         const timestamp = job.posted_at ?? job.found_at
 
         return (
-          <Card
+          <div
             key={notif.id}
-            className="hover:shadow-md transition-shadow cursor-pointer"
+            className="rounded-xl border bg-card text-card-foreground shadow-sm hover:shadow-md transition-shadow cursor-pointer"
             onClick={() => setExpandedId(isExpanded ? null : notif.id)}
           >
             <CardContent className="py-4">
@@ -157,7 +157,7 @@ export function JobListClient({ jobs, userId, appliedJobIds: initialViewed }: Jo
                 </div>
               )}
             </CardContent>
-          </Card>
+          </div>
         )
       })}
     </div>
