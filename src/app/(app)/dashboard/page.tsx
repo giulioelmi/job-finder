@@ -4,7 +4,6 @@ import { Badge } from '@/components/ui/badge'
 import { getStatusColor } from '@/lib/utils'
 import { Briefcase, Bell, TrendingUp, Clock } from 'lucide-react'
 import Link from 'next/link'
-import { formatDistanceToNow } from 'date-fns'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -14,7 +13,7 @@ export default async function DashboardPage() {
   todayStart.setUTCHours(0, 0, 0, 0)
 
   // Fetch stats in parallel
-  const [applicationsRes, notificationsRes, recentJobsRes] = await Promise.all([
+  const [applicationsRes, notificationsRes] = await Promise.all([
     supabase
       .from('applications')
       .select('status, created_at, jobs(title, company)', { count: 'exact' })
@@ -24,18 +23,10 @@ export default async function DashboardPage() {
       .select('id, jobs!inner(posted_at)', { count: 'exact' })
       .eq('user_id', user!.id)
       .gte('jobs.posted_at', todayStart.toISOString()),
-    supabase
-      .from('job_notifications')
-      .select('notified_at, jobs(title, company, url, location)')
-      .eq('user_id', user!.id)
-      .gte('notified_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
-      .order('notified_at', { ascending: false })
-      .limit(5),
   ])
 
   const applications = applicationsRes.data ?? []
   const notificationsCount = notificationsRes.count ?? 0
-  const recentJobs = recentJobsRes.data ?? []
 
   // Build 7-day activity chart data
   const today = new Date()
@@ -89,84 +80,6 @@ export default async function DashboardPage() {
             </CardContent>
           </Card>
         ))}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Application Pipeline */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Application Pipeline</CardTitle>
-              <Link href="/applications" className="text-sm text-blue-600 hover:underline">View all</Link>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {applications.length === 0 ? (
-              <div className="text-center py-8">
-                <Briefcase className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-500 text-sm">No applications yet</p>
-                <Link href="/jobs" className="text-blue-600 text-sm hover:underline mt-1 inline-block">
-                  Browse recent jobs →
-                </Link>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {applications.slice(0, 5).map((app, i) => {
-                  const job = (app.jobs as unknown) as { title: string; company: string } | null
-                  return (
-                    <div key={i} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">{job?.title ?? 'Unknown'}</p>
-                        <p className="text-xs text-gray-500">{job?.company ?? '—'}</p>
-                      </div>
-                      <Badge className={getStatusColor(app.status)}>
-                        {app.status}
-                      </Badge>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Recent Notifications */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Recent Notifications</CardTitle>
-              <Link href="/jobs" className="text-sm text-blue-600 hover:underline">View all</Link>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {recentJobs.length === 0 ? (
-              <div className="text-center py-8">
-                <Bell className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-                <p className="text-gray-500 text-sm">No notifications yet</p>
-                <Link href="/settings" className="text-blue-600 text-sm hover:underline mt-1 inline-block">
-                  Set up job alerts →
-                </Link>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {recentJobs.map((notif, i) => {
-                  const job = (notif.jobs as unknown) as { title: string; company: string; url: string; location: string } | null
-                  return (
-                    <div key={i} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">{job?.title ?? 'Unknown'}</p>
-                        <p className="text-xs text-gray-500">{job?.company} · {job?.location}</p>
-                      </div>
-                      <span className="text-xs text-gray-400">
-                        {formatDistanceToNow(new Date(notif.notified_at), { addSuffix: true })}
-                      </span>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
       </div>
 
       {/* Weekly Activity Chart */}
