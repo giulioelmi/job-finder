@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent } from '@/components/ui/card'
-import { MapPin, Building2, Clock, ExternalLink, Eye, Trash2 } from 'lucide-react'
+import { MapPin, Building2, Clock, ExternalLink, Eye, Trash2, CheckCircle } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 
 interface Job {
@@ -32,10 +32,13 @@ export function JobListClient({ jobs, userId, appliedJobIds: initialViewed }: Jo
   const supabase = createClient()
   const [viewed, setViewed] = useState<Set<string>>(initialViewed)
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set())
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [markedApplied, setMarkedApplied] = useState<Set<string>>(new Set())
 
   const notifications = jobs.filter(n => !deletedIds.has(n.id))
 
-  async function handleViewJob(job: Job) {
+  async function handleViewJob(job: Job, e: React.MouseEvent) {
+    e.stopPropagation()
     if (!viewed.has(job.id)) {
       await supabase.from('applications').upsert(
         { user_id: userId, job_id: job.id, status: 'viewed' },
@@ -46,7 +49,19 @@ export function JobListClient({ jobs, userId, appliedJobIds: initialViewed }: Jo
     window.open(job.url, '_blank', 'noopener,noreferrer')
   }
 
-  async function handleDelete(notificationId: string) {
+  async function handleMarkApplied(job: Job, e: React.MouseEvent) {
+    e.stopPropagation()
+    if (markedApplied.has(job.id)) return
+    await supabase.from('applications').upsert(
+      { user_id: userId, job_id: job.id, status: 'applied' },
+      { onConflict: 'user_id,job_id', ignoreDuplicates: false }
+    )
+    setMarkedApplied(prev => new Set(prev).add(job.id))
+    setViewed(prev => new Set(prev).add(job.id))
+  }
+
+  async function handleDelete(notificationId: string, e: React.MouseEvent) {
+    e.stopPropagation()
     await supabase
       .from('job_notifications')
       .delete()
@@ -61,10 +76,16 @@ export function JobListClient({ jobs, userId, appliedJobIds: initialViewed }: Jo
         const job = notif.jobs
         if (!job) return null
         const isViewed = viewed.has(job.id)
+        const isApplied = markedApplied.has(job.id)
+        const isExpanded = expandedId === notif.id
         const timestamp = job.posted_at ?? job.found_at
 
         return (
-          <Card key={notif.id} className="hover:shadow-md transition-shadow">
+          <Card
+            key={notif.id}
+            className="hover:shadow-md transition-shadow cursor-pointer"
+            onClick={() => setExpandedId(isExpanded ? null : notif.id)}
+          >
             <CardContent className="py-4">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
@@ -90,7 +111,7 @@ export function JobListClient({ jobs, userId, appliedJobIds: initialViewed }: Jo
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <button
-                    onClick={() => handleViewJob(job)}
+                    onClick={(e) => handleViewJob(job, e)}
                     className={`inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                       isViewed
                         ? 'bg-gray-100 text-gray-600 hover:bg-gray-200'
@@ -110,7 +131,7 @@ export function JobListClient({ jobs, userId, appliedJobIds: initialViewed }: Jo
                     )}
                   </button>
                   <button
-                    onClick={() => handleDelete(notif.id)}
+                    onClick={(e) => handleDelete(notif.id, e)}
                     className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                     title="Remove job"
                   >
@@ -118,6 +139,23 @@ export function JobListClient({ jobs, userId, appliedJobIds: initialViewed }: Jo
                   </button>
                 </div>
               </div>
+
+              {isExpanded && (
+                <div className="mt-3 pt-3 border-t border-gray-100">
+                  <button
+                    onClick={(e) => handleMarkApplied(job, e)}
+                    disabled={isApplied}
+                    className={`inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                      isApplied
+                        ? 'bg-green-100 text-green-700 cursor-default'
+                        : 'bg-green-600 text-white hover:bg-green-700'
+                    }`}
+                  >
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    {isApplied ? 'Applied' : 'Mark as Applied'}
+                  </button>
+                </div>
+              )}
             </CardContent>
           </Card>
         )
