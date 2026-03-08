@@ -30,12 +30,12 @@ export function SettingsForm({ userId, userEmail, initialSettings }: SettingsFor
     initialSettings?.ashby_companies?.length ? initialSettings.ashby_companies : []
   )
   const [jobTitles, setJobTitles] = useState<string[]>(
-    initialSettings?.categories?.length ? initialSettings.categories : DEFAULT_JOB_TITLES
+    initialSettings?.categories ?? DEFAULT_JOB_TITLES
   )
   const [jobTypes, setJobTypes] = useState<JobTypeId[]>(
-    (initialSettings?.job_types as JobTypeId[] | undefined)?.length
-      ? (initialSettings!.job_types as JobTypeId[])
-      : DEFAULT_JOB_TYPES
+    (initialSettings?.job_types?.length
+      ? (initialSettings.job_types as JobTypeId[])
+      : DEFAULT_JOB_TYPES)
   )
   const [location, setLocation] = useState(initialSettings?.location ?? '')
   const [emailNotifications, setEmailNotifications] = useState(initialSettings?.email_notifications ?? true)
