@@ -40,7 +40,7 @@ export function ApplicationsClient({ applications: initial, userId }: Applicatio
 
   async function handleAddManual(data: {
     title: string; company: string; location: string; url: string; status: ApplicationStatus
-  }) {
+  }): Promise<string | null> {
     const res = await fetch('/api/applications/manual', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -49,8 +49,10 @@ export function ApplicationsClient({ applications: initial, userId }: Applicatio
     const json = await res.json()
     if (json.application) {
       setApplications(prev => [json.application, ...prev])
+      setShowAddModal(false)
+      return null
     }
-    setShowAddModal(false)
+    return json.error ?? 'Something went wrong. Please try again.'
   }
 
   const filtered = filterStatus === 'all'
@@ -227,7 +229,7 @@ function AddJobModal({
   onAdd,
 }: {
   onClose: () => void
-  onAdd: (data: { title: string; company: string; location: string; url: string; status: ApplicationStatus }) => Promise<void>
+  onAdd: (data: { title: string; company: string; location: string; url: string; status: ApplicationStatus }) => Promise<string | null>
 }) {
   const [title, setTitle] = useState('')
   const [company, setCompany] = useState('')
@@ -235,13 +237,16 @@ function AddJobModal({
   const [url, setUrl] = useState('')
   const [status, setStatus] = useState<ApplicationStatus>('applied')
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!title.trim()) return
     setSaving(true)
-    await onAdd({ title: title.trim(), company: company.trim(), location: location.trim(), url: url.trim(), status })
+    setError(null)
+    const err = await onAdd({ title: title.trim(), company: company.trim(), location: location.trim(), url: url.trim(), status })
     setSaving(false)
+    if (err) setError(err)
   }
 
   return (
@@ -307,6 +312,9 @@ function AddJobModal({
               ))}
             </select>
           </div>
+          {error && (
+            <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
+          )}
           <div className="flex gap-3 pt-2">
             <Button type="submit" disabled={saving || !title.trim()} className="flex-1">
               {saving ? 'Saving...' : 'Add Application'}

@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { JOB_TITLE_SUGGESTIONS, COMPANY_SUGGESTIONS, JOB_TYPES, JobTypeId } from '@/lib/categories'
 import { UserSettings } from '@/lib/types'
-import { X, Search, Globe, Building2 } from 'lucide-react'
+import { X, Search, Globe, Building2, Layers } from 'lucide-react'
 
 interface SettingsFormProps {
   userId: string
@@ -134,6 +134,8 @@ export function SettingsForm({ userId, userEmail, initialSettings }: SettingsFor
     } else {
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
+      // Backfill notifications from existing DB jobs in background
+      fetch('/api/backfill', { method: 'POST' }).catch(() => null)
     }
   }
 
@@ -314,74 +316,125 @@ export function SettingsForm({ userId, userEmail, initialSettings }: SettingsFor
         <CardHeader>
           <CardTitle>Job Title Keywords</CardTitle>
           <p className="text-sm text-gray-500 mt-1">
-            Filter results to jobs whose title contains one of these keywords. Leave empty to see all jobs.
+            Choose whether to receive all new jobs or only those matching specific title keywords.
           </p>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {jobTitles.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {jobTitles.map(title => (
-                <span
-                  key={title}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 border border-blue-200 text-blue-800 text-sm font-medium rounded-full"
-                >
-                  {title}
-                  <button
-                    onClick={() => setJobTitles(prev => prev.filter(t => t !== title))}
-                    className="text-blue-400 hover:text-blue-700 transition-colors"
-                    aria-label={`Remove ${title}`}
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </span>
-              ))}
+        <CardContent className="space-y-3">
+          {/* All new jobs option */}
+          <button
+            type="button"
+            onClick={() => setJobTitles([])}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-colors ${
+              jobTitles.length === 0
+                ? 'border-blue-500 bg-blue-50'
+                : 'border-gray-200 hover:border-gray-300'
+            }`}
+          >
+            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+              jobTitles.length === 0 ? 'border-blue-500' : 'border-gray-400'
+            }`}>
+              {jobTitles.length === 0 && <div className="w-2 h-2 rounded-full bg-blue-500" />}
             </div>
-          )}
+            <Layers className="w-4 h-4 text-gray-500 shrink-0" />
+            <div>
+              <p className={`text-sm font-medium ${jobTitles.length === 0 ? 'text-blue-800' : 'text-gray-700'}`}>
+                All new jobs
+              </p>
+              <p className="text-xs text-gray-400">Receive every new job, regardless of title</p>
+            </div>
+          </button>
 
-          <div className="relative">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-              <input
-                ref={titleInputRef}
-                type="text"
-                value={titleQuery}
-                onChange={e => { setTitleQuery(e.target.value); setShowTitleDropdown(true) }}
-                onFocus={() => setShowTitleDropdown(true)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' && titleQuery.trim()) {
-                    if (filteredTitles.length > 0) addTitle(filteredTitles[0])
-                    else addTitle(titleQuery.trim())
-                  } else if (e.key === 'Escape') setShowTitleDropdown(false)
-                }}
-                placeholder="Search job titles, e.g. Data Analyst..."
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-              />
+          {/* Specific keywords option */}
+          <button
+            type="button"
+            onClick={() => { if (jobTitles.length === 0) setJobTitles(DEFAULT_JOB_TITLES) }}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-colors ${
+              jobTitles.length > 0
+                ? 'border-blue-500 bg-blue-50'
+                : 'border-gray-200 hover:border-gray-300'
+            }`}
+          >
+            <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+              jobTitles.length > 0 ? 'border-blue-500' : 'border-gray-400'
+            }`}>
+              {jobTitles.length > 0 && <div className="w-2 h-2 rounded-full bg-blue-500" />}
             </div>
-            {showTitleDropdown && (filteredTitles.length > 0 || showCustomTitle) && (
-              <div
-                ref={titleDropdownRef}
-                className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden"
-              >
-                {filteredTitles.map(title => (
-                  <button
+            <Search className="w-4 h-4 text-gray-500 shrink-0" />
+            <div>
+              <p className={`text-sm font-medium ${jobTitles.length > 0 ? 'text-blue-800' : 'text-gray-700'}`}>
+                Specific keywords
+              </p>
+              <p className="text-xs text-gray-400">Only jobs whose title contains one of your keywords</p>
+            </div>
+          </button>
+
+          {/* Keyword picker (shown only in specific mode) */}
+          {jobTitles.length > 0 && (
+            <div className="pt-1 space-y-3">
+              <div className="flex flex-wrap gap-2">
+                {jobTitles.map(title => (
+                  <span
                     key={title}
-                    onMouseDown={e => { e.preventDefault(); addTitle(title) }}
-                    className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-800 transition-colors"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 border border-blue-200 text-blue-800 text-sm font-medium rounded-full"
                   >
                     {title}
-                  </button>
+                    <button
+                      onClick={() => setJobTitles(prev => prev.filter(t => t !== title))}
+                      className="text-blue-400 hover:text-blue-700 transition-colors"
+                      aria-label={`Remove ${title}`}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </span>
                 ))}
-                {showCustomTitle && (
-                  <button
-                    onMouseDown={e => { e.preventDefault(); addTitle(titleQuery.trim()) }}
-                    className="w-full text-left px-4 py-2.5 text-sm text-gray-500 hover:bg-gray-50 border-t border-gray-100"
+              </div>
+
+              <div className="relative">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                  <input
+                    ref={titleInputRef}
+                    type="text"
+                    value={titleQuery}
+                    onChange={e => { setTitleQuery(e.target.value); setShowTitleDropdown(true) }}
+                    onFocus={() => setShowTitleDropdown(true)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && titleQuery.trim()) {
+                        if (filteredTitles.length > 0) addTitle(filteredTitles[0])
+                        else addTitle(titleQuery.trim())
+                      } else if (e.key === 'Escape') setShowTitleDropdown(false)
+                    }}
+                    placeholder="Search job titles, e.g. Data Analyst..."
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  />
+                </div>
+                {showTitleDropdown && (filteredTitles.length > 0 || showCustomTitle) && (
+                  <div
+                    ref={titleDropdownRef}
+                    className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden"
                   >
-                    Add &ldquo;{titleQuery.trim()}&rdquo;
-                  </button>
+                    {filteredTitles.map(title => (
+                      <button
+                        key={title}
+                        onMouseDown={e => { e.preventDefault(); addTitle(title) }}
+                        className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-800 transition-colors"
+                      >
+                        {title}
+                      </button>
+                    ))}
+                    {showCustomTitle && (
+                      <button
+                        onMouseDown={e => { e.preventDefault(); addTitle(titleQuery.trim()) }}
+                        className="w-full text-left px-4 py-2.5 text-sm text-gray-500 hover:bg-gray-50 border-t border-gray-100"
+                      >
+                        Add &ldquo;{titleQuery.trim()}&rdquo;
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

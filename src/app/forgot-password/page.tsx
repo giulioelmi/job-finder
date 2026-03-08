@@ -1,0 +1,93 @@
+'use client'
+
+export const dynamic = 'force-dynamic'
+
+import { useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import Link from 'next/link'
+import { Briefcase } from 'lucide-react'
+
+export default function ForgotPasswordPage() {
+  const [email, setEmail] = useState('')
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const supabase = createClient()
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    })
+
+    if (error) {
+      setError(error.message)
+      setLoading(false)
+    } else {
+      setSuccess(true)
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="w-full max-w-md">
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-12 h-12 bg-blue-600 rounded-xl mb-4">
+            <Briefcase className="w-6 h-6 text-white" />
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900">JobFinder</h1>
+          <p className="text-gray-500 mt-1">Reset your password</p>
+        </div>
+
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
+          {success ? (
+            <div className="text-center space-y-4">
+              <p className="text-sm text-gray-700">
+                Check your email for a password reset link. It may take a minute to arrive.
+              </p>
+              <Link href="/login" className="block text-sm text-blue-600 font-medium hover:underline">
+                Back to sign in
+              </Link>
+            </div>
+          ) : (
+            <>
+              <p className="text-sm text-gray-600 mb-4">
+                Enter your email and we&apos;ll send you a link to reset your password.
+              </p>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    required
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    placeholder="you@example.com"
+                  />
+                </div>
+                {error && <p className="text-sm text-red-600">{error}</p>}
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                >
+                  {loading ? 'Sending...' : 'Send reset link'}
+                </button>
+              </form>
+              <p className="text-center text-sm text-gray-500 mt-6">
+                <Link href="/login" className="text-blue-600 font-medium hover:underline">
+                  Back to sign in
+                </Link>
+              </p>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}

@@ -1,6 +1,12 @@
 import { Resend } from 'resend'
 import { GreenhouseJob } from './greenhouse'
 
+function formatPostedAt(posted_at: string | null): string {
+  if (!posted_at) return 'just now'
+  const d = new Date(posted_at)
+  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })
+}
+
 export async function sendJobNotificationEmail(
   to: string,
   jobs: GreenhouseJob[]
@@ -9,31 +15,41 @@ export async function sendJobNotificationEmail(
   if (!process.env.RESEND_API_KEY) return
   const resend = new Resend(process.env.RESEND_API_KEY)
 
+  const count = jobs.length
+  const jobLines = jobs
+    .map(job => `• ${job.company} — ${job.title}, posted ${formatPostedAt(job.posted_at)}`)
+    .join('\n')
+
   const jobListHtml = jobs
     .map(
-      job => `
-    <div style="border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin-bottom:12px;">
-      <h3 style="margin:0 0 4px;font-size:16px;color:#111827;">${job.title}</h3>
-      ${job.company ? `<p style="margin:0 0 4px;color:#6b7280;font-size:14px;">${job.company}</p>` : ''}
-      ${job.location ? `<p style="margin:0 0 8px;color:#6b7280;font-size:13px;">📍 ${job.location}</p>` : ''}
-      <a href="${job.url}" style="display:inline-block;padding:8px 16px;background:#2563eb;color:#fff;border-radius:6px;text-decoration:none;font-size:14px;font-weight:500;">
-        View Job →
-      </a>
-    </div>`
+      job => `<tr>
+        <td style="padding:12px 0;border-bottom:1px solid #f3f4f6;">
+          <strong style="color:#111827;">${job.company}</strong>
+          <span style="color:#6b7280;font-size:14px;"> — ${job.title}</span><br/>
+          <span style="color:#9ca3af;font-size:13px;">Posted ${formatPostedAt(job.posted_at)}${job.location ? ` · ${job.location}` : ''}</span><br/>
+          <a href="${job.url}" style="color:#2563eb;font-size:13px;text-decoration:none;">View job →</a>
+        </td>
+      </tr>`
     )
     .join('')
+
+  const subject = count === 1
+    ? `1 new job just posted`
+    : `${count} new jobs just posted`
 
   await resend.emails.send({
     from: process.env.RESEND_FROM_EMAIL ?? 'JobFinder <noreply@yourdomain.com>',
     to,
-    subject: `🔔 ${jobs.length} new job${jobs.length > 1 ? 's' : ''} found`,
+    subject,
+    text: `Hey,\n\n${count === 1 ? 'A new job has' : `${count} jobs have`} just been posted:\n\n${jobLines}\n\nManage your alerts: ${process.env.NEXT_PUBLIC_APP_URL}/settings`,
     html: `
       <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;">
-        <h2 style="color:#111827;margin-bottom:4px;">New Jobs Found</h2>
-        <p style="color:#6b7280;margin-bottom:24px;">
-          We found ${jobs.length} new job${jobs.length > 1 ? 's' : ''} matching your search.
+        <p style="font-size:16px;color:#111827;margin-bottom:20px;">
+          Hey, ${count === 1 ? 'a new job has' : `${count} jobs have`} just been posted:
         </p>
-        ${jobListHtml}
+        <table style="width:100%;border-collapse:collapse;">
+          ${jobListHtml}
+        </table>
         <p style="color:#9ca3af;font-size:12px;margin-top:24px;">
           You're receiving this because you set up job alerts on JobFinder.
           <a href="${process.env.NEXT_PUBLIC_APP_URL}/settings" style="color:#2563eb;">Manage alerts</a>

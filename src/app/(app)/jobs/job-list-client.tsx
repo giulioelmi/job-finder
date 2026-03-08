@@ -28,10 +28,12 @@ interface JobListClientProps {
   appliedJobIds: Set<string>
 }
 
-export function JobListClient({ jobs: initial, userId, appliedJobIds: initialViewed }: JobListClientProps) {
+export function JobListClient({ jobs, userId, appliedJobIds: initialViewed }: JobListClientProps) {
   const supabase = createClient()
   const [viewed, setViewed] = useState<Set<string>>(initialViewed)
-  const [notifications, setNotifications] = useState(initial)
+  const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set())
+
+  const notifications = jobs.filter(n => !deletedIds.has(n.id))
 
   async function handleViewJob(job: Job) {
     if (!viewed.has(job.id)) {
@@ -50,7 +52,7 @@ export function JobListClient({ jobs: initial, userId, appliedJobIds: initialVie
       .delete()
       .eq('id', notificationId)
       .eq('user_id', userId)
-    setNotifications(prev => prev.filter(n => n.id !== notificationId))
+    setDeletedIds(prev => new Set(prev).add(notificationId))
   }
 
   return (
