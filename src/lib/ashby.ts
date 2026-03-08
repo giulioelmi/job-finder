@@ -54,7 +54,7 @@ export async function fetchAshbyJobs(
   jobTypes: string[] = [],
   createdAfter?: Date
 ): Promise<AshbyFetchResult> {
-  const url = `https://api.ashbyhq.com/posting-api/job-board/${companySlug}`
+  const url = `https://api.ashbyhq.com/posting-api/job-board/${encodeURIComponent(companySlug)}`
 
   let response: Response
   try {
