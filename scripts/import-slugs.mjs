@@ -71,8 +71,8 @@ if (!csvPath) {
 const raw = readFileSync(csvPath, 'utf8')
 const lines = raw.split('\n').map(l => l.trim()).filter(Boolean)
 
-// Skip header row if it looks like a column name (non-slug string)
-const slugPattern = /^[a-z0-9_-]+$/
+// Filter out header rows and blank lines; allow uppercase and spaces (Ashby slugs can have both)
+const slugPattern = /^[a-zA-Z0-9 _-]+$/
 const slugs = lines.filter(l => slugPattern.test(l))
 
 if (slugs.length === 0) {
