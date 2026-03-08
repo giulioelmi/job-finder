@@ -1,5 +1,12 @@
 import { Resend } from 'resend'
-import { GreenhouseJob } from './greenhouse'
+
+interface EmailJob {
+  company: string
+  title: string
+  posted_at: string | null
+  location: string | null
+  url: string
+}
 
 function formatPostedAt(posted_at: string | null): string {
   if (!posted_at) return 'just now'
@@ -9,7 +16,7 @@ function formatPostedAt(posted_at: string | null): string {
 
 export async function sendJobNotificationEmail(
   to: string,
-  jobs: GreenhouseJob[]
+  jobs: EmailJob[]
 ): Promise<void> {
   if (jobs.length === 0) return
   if (!process.env.RESEND_API_KEY) return

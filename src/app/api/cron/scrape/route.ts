@@ -1,14 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase/server'
 import { fetchGreenhouseJobs, GreenhouseJob } from '@/lib/greenhouse'
+import { fetchAshbyJobs, AshbyJob } from '@/lib/ashby'
 import { sendJobNotificationEmail } from '@/lib/email'
-import { ALL_GREENHOUSE_COMPANIES } from '@/lib/categories'
+import { ALL_GREENHOUSE_COMPANIES, ALL_ASHBY_COMPANIES } from '@/lib/categories'
 
-async function getAllSlugs(supabase: ReturnType<typeof createServiceClient>): Promise<string[]> {
+type ScrapedJob = GreenhouseJob | AshbyJob
+
+async function getAllGreenhouseSlugs(supabase: ReturnType<typeof createServiceClient>): Promise<string[]> {
   const { data } = await supabase.from('greenhouse_slugs').select('slug')
   if (data && data.length > 0) return data.map((r: { slug: string }) => r.slug)
-  // Fall back to the hardcoded list if the table is empty or missing
   return ALL_GREENHOUSE_COMPANIES
+}
+
+async function getAllAshbySlugs(supabase: ReturnType<typeof createServiceClient>): Promise<string[]> {
+  const { data } = await supabase.from('ashby_slugs').select('slug')
+  if (data && data.length > 0) return data.map((r: { slug: string }) => r.slug)
+  return ALL_ASHBY_COMPANIES
 }
 
 // Cron runs every 20 minutes, fetching jobs created in the last 30 minutes.
@@ -24,30 +32,41 @@ export async function GET(req: NextRequest) {
 
   const { data: allSettings } = await supabase
     .from('user_settings')
-    .select('user_id, search_all_companies, companies, categories, job_types, location, email_notifications, notification_email')
+    .select('user_id, search_all_companies, companies, ashby_companies, categories, job_types, location, email_notifications, notification_email')
 
   if (!allSettings || allSettings.length === 0) {
     return NextResponse.json({ success: true, message: 'No users configured.' })
   }
 
-  // Build the unique set of companies to fetch this run
-  const companySet = new Set<string>()
+  // Build the unique sets of slugs to fetch this run — Greenhouse and Ashby separately
+  const ghSet = new Set<string>()
+  const ashbySet = new Set<string>()
   const anySearchAll = allSettings.some(u => u.search_all_companies)
+
   if (anySearchAll) {
-    const allSlugs = await getAllSlugs(supabase)
-    allSlugs.forEach(c => companySet.add(c))
+    const [ghSlugs, ashbySlugs] = await Promise.all([
+      getAllGreenhouseSlugs(supabase),
+      getAllAshbySlugs(supabase),
+    ])
+    ghSlugs.forEach(s => ghSet.add(s))
+    ashbySlugs.forEach(s => ashbySet.add(s))
   }
+
   for (const row of allSettings) {
     if (!row.search_all_companies) {
       for (const slug of (row.companies as string[] | null) ?? []) {
-        if (slug) companySet.add(slug)
+        if (slug) ghSet.add(slug)
+      }
+      for (const slug of (row.ashby_companies as string[] | null) ?? []) {
+        if (slug) ashbySet.add(slug)
       }
     }
   }
 
-  const companiesToCheck = Array.from(companySet)
+  const ghSlugsToCheck = Array.from(ghSet)
+  const ashbySlugsToCheck = Array.from(ashbySet)
 
-  if (companiesToCheck.length === 0) {
+  if (ghSlugsToCheck.length === 0 && ashbySlugsToCheck.length === 0) {
     return NextResponse.json({ success: true, message: 'No companies configured by any user.' })
   }
 
@@ -57,21 +76,27 @@ export async function GET(req: NextRequest) {
     .delete()
     .lt('notified_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
 
-  // Fetch jobs created in the last 30 minutes across all companies in parallel
+  // Fetch jobs created in the last 30 minutes from both APIs in parallel
   const createdAfter = new Date(Date.now() - 30 * 60 * 1000)
-  const fetchResults = await Promise.allSettled(
-    companiesToCheck.map(slug => fetchGreenhouseJobs(slug, [], [], createdAfter))
-  )
 
-  // Build a flat map of external_id → GreenhouseJob for all fetched jobs
-  const allFetched = new Map<string, GreenhouseJob>()
-  const companyJobs = new Map<string, GreenhouseJob[]>() // slug → jobs
-  for (let i = 0; i < companiesToCheck.length; i++) {
-    const res = fetchResults[i]
+  const [ghResults, ashbyResults] = await Promise.all([
+    Promise.allSettled(ghSlugsToCheck.map(slug => fetchGreenhouseJobs(slug, [], [], createdAfter))),
+    Promise.allSettled(ashbySlugsToCheck.map(slug => fetchAshbyJobs(slug, [], [], createdAfter))),
+  ])
+
+  // Build a flat map of external_id → ScrapedJob for all fetched jobs
+  const allFetched = new Map<string, ScrapedJob>()
+
+  for (let i = 0; i < ghSlugsToCheck.length; i++) {
+    const res = ghResults[i]
     if (res.status === 'rejected' || !res.value.ok) continue
-    const jobs = res.value.jobs
-    companyJobs.set(companiesToCheck[i], jobs)
-    for (const job of jobs) allFetched.set(job.external_id, job)
+    for (const job of res.value.jobs) allFetched.set(job.external_id, job)
+  }
+
+  for (let i = 0; i < ashbySlugsToCheck.length; i++) {
+    const res = ashbyResults[i]
+    if (res.status === 'rejected' || !res.value.ok) continue
+    for (const job of res.value.jobs) allFetched.set(job.external_id, job)
   }
 
   if (allFetched.size === 0) {
@@ -103,7 +128,8 @@ export async function GET(req: NextRequest) {
   let notifiedUsers = 0
   for (const user of allSettings) {
     const searchAll: boolean = user.search_all_companies ?? false
-    const userCompanies: string[] = searchAll ? Array.from(companySet) : (user.companies ?? [])
+    const userGhCompanies: string[] = searchAll ? ghSlugsToCheck : (user.companies ?? [])
+    const userAshbyCompanies: string[] = searchAll ? ashbySlugsToCheck : (user.ashby_companies ?? [])
     const userKeywords = ((user.categories as string[] | null) ?? []).map(k => k.toLowerCase())
     const userJobTypes: string[] = user.job_types ?? ['internship', 'fulltime']
     const userLocation = (user.location ?? '').trim().toLowerCase()
@@ -112,7 +138,13 @@ export async function GET(req: NextRequest) {
     const relevantRows = jobRows.filter(j => {
       const job = allFetched.get(j.external_id)
       if (!job) return false
-      if (!userCompanies.includes(job.slug)) return false
+
+      // Match company against the correct API's company list
+      if (job.source === 'greenhouse') {
+        if (!userGhCompanies.includes(job.slug)) return false
+      } else {
+        if (!userAshbyCompanies.includes(job.slug)) return false
+      }
 
       const titleLower = j.title.toLowerCase()
       if (userKeywords.length > 0 && !userKeywords.some(kw => titleLower.includes(kw))) return false
@@ -147,7 +179,7 @@ export async function GET(req: NextRequest) {
     if (user.email_notifications && user.notification_email) {
       const newJobDetails = newRows
         .map(jr => allFetched.get(jr.external_id))
-        .filter((j): j is GreenhouseJob => !!j)
+        .filter((j): j is ScrapedJob => !!j)
       await sendJobNotificationEmail(user.notification_email, newJobDetails)
     }
 
@@ -157,7 +189,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     success: true,
     fetched: allFetched.size,
-    companiesChecked: companiesToCheck.length,
+    companiesChecked: ghSlugsToCheck.length + ashbySlugsToCheck.length,
     notifiedUsers,
   })
 }

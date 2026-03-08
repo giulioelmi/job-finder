@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { JOB_TITLE_SUGGESTIONS, COMPANY_SUGGESTIONS, JOB_TYPES, JobTypeId } from '@/lib/categories'
+import { JOB_TITLE_SUGGESTIONS, COMPANY_SUGGESTIONS, ASHBY_COMPANY_SUGGESTIONS, JOB_TYPES, JobTypeId } from '@/lib/categories'
 import { UserSettings } from '@/lib/types'
 import { X, Search, Globe, Building2, Layers } from 'lucide-react'
 
@@ -25,6 +25,9 @@ export function SettingsForm({ userId, userEmail, initialSettings }: SettingsFor
   )
   const [companies, setCompanies] = useState<string[]>(
     initialSettings?.companies?.length ? initialSettings.companies : []
+  )
+  const [ashbyCompanies, setAshbyCompanies] = useState<string[]>(
+    initialSettings?.ashby_companies?.length ? initialSettings.ashby_companies : []
   )
   const [jobTitles, setJobTitles] = useState<string[]>(
     initialSettings?.categories?.length ? initialSettings.categories : DEFAULT_JOB_TITLES
@@ -47,11 +50,17 @@ export function SettingsForm({ userId, userEmail, initialSettings }: SettingsFor
   const titleInputRef = useRef<HTMLInputElement>(null)
   const titleDropdownRef = useRef<HTMLDivElement>(null)
 
-  // Company search state
+  // Company search state (Greenhouse)
   const [companyQuery, setCompanyQuery] = useState('')
   const [showCompanyDropdown, setShowCompanyDropdown] = useState(false)
   const companyInputRef = useRef<HTMLInputElement>(null)
   const companyDropdownRef = useRef<HTMLDivElement>(null)
+
+  // Company search state (Ashby)
+  const [ashbyQuery, setAshbyQuery] = useState('')
+  const [showAshbyDropdown, setShowAshbyDropdown] = useState(false)
+  const ashbyInputRef = useRef<HTMLInputElement>(null)
+  const ashbyDropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -63,6 +72,10 @@ export function SettingsForm({ userId, userEmail, initialSettings }: SettingsFor
         companyDropdownRef.current && !companyDropdownRef.current.contains(e.target as Node) &&
         companyInputRef.current && !companyInputRef.current.contains(e.target as Node)
       ) setShowCompanyDropdown(false)
+      if (
+        ashbyDropdownRef.current && !ashbyDropdownRef.current.contains(e.target as Node) &&
+        ashbyInputRef.current && !ashbyInputRef.current.contains(e.target as Node)
+      ) setShowAshbyDropdown(false)
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
@@ -86,6 +99,15 @@ export function SettingsForm({ userId, userEmail, initialSettings }: SettingsFor
     !COMPANY_SUGGESTIONS.some(c => c.toLowerCase() === companyQuery.trim().toLowerCase()) &&
     !companies.includes(companyQuery.trim().toLowerCase())
 
+  const filteredAshbyCompanies = ASHBY_COMPANY_SUGGESTIONS.filter(c =>
+    c.toLowerCase().includes(ashbyQuery.toLowerCase()) && !ashbyCompanies.includes(c)
+  ).slice(0, 8)
+
+  const showCustomAshby =
+    ashbyQuery.trim().length > 0 &&
+    !ASHBY_COMPANY_SUGGESTIONS.some(c => c.toLowerCase() === ashbyQuery.trim().toLowerCase()) &&
+    !ashbyCompanies.includes(ashbyQuery.trim().toLowerCase())
+
   function addTitle(title: string) {
     const t = title.trim()
     if (t && !jobTitles.includes(t)) setJobTitles(prev => [...prev, t])
@@ -102,13 +124,21 @@ export function SettingsForm({ userId, userEmail, initialSettings }: SettingsFor
     companyInputRef.current?.focus()
   }
 
+  function addAshbyCompany(slug: string) {
+    const s = slug.trim().toLowerCase()
+    if (s && !ashbyCompanies.includes(s)) setAshbyCompanies(prev => [...prev, s])
+    setAshbyQuery('')
+    setShowAshbyDropdown(false)
+    ashbyInputRef.current?.focus()
+  }
+
   function toggleJobType(id: JobTypeId) {
     setJobTypes(prev =>
       prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]
     )
   }
 
-  const canSave = searchAllCompanies || companies.length > 0
+  const canSave = searchAllCompanies || companies.length > 0 || ashbyCompanies.length > 0
 
   async function handleSave() {
     setSaving(true)
@@ -120,6 +150,7 @@ export function SettingsForm({ userId, userEmail, initialSettings }: SettingsFor
           user_id: userId,
           search_all_companies: searchAllCompanies,
           companies,
+          ashby_companies: ashbyCompanies,
           categories: jobTitles,
           job_types: jobTypes,
           location,
@@ -275,6 +306,95 @@ export function SettingsForm({ userId, userEmail, initialSettings }: SettingsFor
                 <code className="bg-gray-100 px-1 py-0.5 rounded">boards.greenhouse.io/&#123;slug&#125;</code>
               </p>
             </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Ashby Companies */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Ashby Companies</CardTitle>
+          <p className="text-sm text-gray-500 mt-1">
+            Track additional companies that post jobs via Ashby.{' '}
+            {searchAllCompanies && <span className="text-blue-600">Active — all Ashby companies are searched.</span>}
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {!searchAllCompanies && (
+            <div className="space-y-3">
+              {ashbyCompanies.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {ashbyCompanies.map(slug => (
+                    <span
+                      key={slug}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-50 border border-purple-200 text-purple-800 text-sm font-medium rounded-full"
+                    >
+                      {slug}
+                      <button
+                        onClick={() => setAshbyCompanies(prev => prev.filter(c => c !== slug))}
+                        className="text-purple-400 hover:text-purple-700 transition-colors"
+                        aria-label={`Remove ${slug}`}
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              <div className="relative">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                  <input
+                    ref={ashbyInputRef}
+                    type="text"
+                    value={ashbyQuery}
+                    onChange={e => { setAshbyQuery(e.target.value); setShowAshbyDropdown(true) }}
+                    onFocus={() => setShowAshbyDropdown(true)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && ashbyQuery.trim()) {
+                        if (filteredAshbyCompanies.length > 0) addAshbyCompany(filteredAshbyCompanies[0])
+                        else addAshbyCompany(ashbyQuery.trim())
+                      } else if (e.key === 'Escape') setShowAshbyDropdown(false)
+                    }}
+                    placeholder="Enter Ashby company slug..."
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                  />
+                </div>
+                {showAshbyDropdown && (filteredAshbyCompanies.length > 0 || showCustomAshby) && (
+                  <div
+                    ref={ashbyDropdownRef}
+                    className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden"
+                  >
+                    {filteredAshbyCompanies.map(slug => (
+                      <button
+                        key={slug}
+                        onMouseDown={e => { e.preventDefault(); addAshbyCompany(slug) }}
+                        className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-purple-50 hover:text-purple-800 transition-colors"
+                      >
+                        {slug}
+                      </button>
+                    ))}
+                    {showCustomAshby && (
+                      <button
+                        onMouseDown={e => { e.preventDefault(); addAshbyCompany(ashbyQuery.trim()) }}
+                        className="w-full text-left px-4 py-2.5 text-sm text-gray-500 hover:bg-gray-50 border-t border-gray-100"
+                      >
+                        Add &ldquo;{ashbyQuery.trim().toLowerCase()}&rdquo;
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <p className="text-xs text-gray-400">
+                Find a company&apos;s slug at{' '}
+                <code className="bg-gray-100 px-1 py-0.5 rounded">api.ashbyhq.com/posting-api/job-board/&#123;slug&#125;</code>
+              </p>
+            </div>
+          )}
+          {searchAllCompanies && (
+            <p className="text-sm text-gray-400">All tracked Ashby companies are searched in &ldquo;All companies&rdquo; mode.</p>
           )}
         </CardContent>
       </Card>
@@ -497,7 +617,7 @@ export function SettingsForm({ userId, userEmail, initialSettings }: SettingsFor
         {saved && <span className="text-sm text-green-600 font-medium">Saved!</span>}
         {saveError && <span className="text-sm text-red-500">{saveError}</span>}
         {!canSave && (
-          <span className="text-sm text-red-500">Select a company search option.</span>
+          <span className="text-sm text-red-500">Add at least one company (Greenhouse or Ashby) or enable &ldquo;All companies&rdquo;.</span>
         )}
         {canSave && jobTypes.length === 0 && (
           <span className="text-sm text-red-500">Select at least one job type.</span>

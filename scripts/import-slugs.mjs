@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 /**
- * Import Greenhouse slugs from a CSV file into the database.
+ * Import company slugs from a CSV file into the database.
  *
  * Usage:
- *   node scripts/import-slugs.mjs <path-to-csv>
+ *   node scripts/import-slugs.mjs <path-to-csv>                      # imports into greenhouse_slugs (default)
+ *   node scripts/import-slugs.mjs --table ashby_slugs <path-to-csv>  # imports into ashby_slugs
  *
  * The CSV must have one slug per line (with or without a header row).
  * Re-running is safe — existing slugs are left untouched (ON CONFLICT DO NOTHING).
@@ -44,9 +45,26 @@ if (!SUPABASE_URL || !SERVICE_KEY) {
   process.exit(1)
 }
 
-const csvPath = process.argv[2]
+// Parse CLI args: optional --table <name> followed by <path-to-csv>
+const VALID_TABLES = ['greenhouse_slugs', 'ashby_slugs']
+let tableName = 'greenhouse_slugs'
+let csvPath = null
+
+const args = process.argv.slice(2)
+for (let i = 0; i < args.length; i++) {
+  if (args[i] === '--table') {
+    tableName = args[++i]
+    if (!VALID_TABLES.includes(tableName)) {
+      console.error(`Invalid table "${tableName}". Must be one of: ${VALID_TABLES.join(', ')}`)
+      process.exit(1)
+    }
+  } else {
+    csvPath = args[i]
+  }
+}
+
 if (!csvPath) {
-  console.error('Usage: node scripts/import-slugs.mjs <path-to-csv>')
+  console.error('Usage: node scripts/import-slugs.mjs [--table greenhouse_slugs|ashby_slugs] <path-to-csv>')
   process.exit(1)
 }
 
@@ -62,7 +80,7 @@ if (slugs.length === 0) {
   process.exit(1)
 }
 
-console.log(`Found ${slugs.length} slugs. Upserting into greenhouse_slugs...`)
+console.log(`Found ${slugs.length} slugs. Upserting into ${tableName}...`)
 
 const supabase = createClient(SUPABASE_URL, SERVICE_KEY)
 
@@ -72,7 +90,7 @@ let inserted = 0
 for (let i = 0; i < slugs.length; i += BATCH) {
   const batch = slugs.slice(i, i + BATCH).map(slug => ({ slug }))
   const { error } = await supabase
-    .from('greenhouse_slugs')
+    .from(tableName)
     .upsert(batch, { onConflict: 'slug', ignoreDuplicates: true })
   if (error) {
     console.error(`Batch ${i}–${i + BATCH} failed:`, error.message)

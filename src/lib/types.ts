@@ -2,7 +2,8 @@ export interface UserSettings {
   id: string
   user_id: string
   search_all_companies: boolean
-  companies: string[]
+  companies: string[]        // Greenhouse slugs
+  ashby_companies: string[]  // Ashby slugs
   categories: string[]
   job_types: string[]
   location: string
