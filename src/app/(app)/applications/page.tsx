@@ -7,7 +7,7 @@ export default async function ApplicationsPage() {
 
   const { data: applications } = await supabase
     .from('applications')
-    .select('*, jobs(title, company, location, url)')
+    .select('*, jobs(title, company, location, url, posted_at, found_at)')
     .eq('user_id', user!.id)
     .order('created_at', { ascending: false })
 
