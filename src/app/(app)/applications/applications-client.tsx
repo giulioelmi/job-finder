@@ -7,10 +7,10 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { getStatusColor } from '@/lib/utils'
 import { Application, ApplicationStatus } from '@/lib/types'
-import { ExternalLink, Building2, MapPin, ChevronDown, Briefcase, Plus, X, Trash2 } from 'lucide-react'
+import { ExternalLink, MapPin, ChevronDown, Briefcase, Plus, X, Trash2 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 
-const STATUSES: ApplicationStatus[] = ['viewed', 'applied', 'interview', 'offer', 'rejected', 'saved']
+const STATUSES: ApplicationStatus[] = ['viewed', 'applied', 'interview', 'offer', 'rejected']
 
 interface ApplicationsClientProps {
   applications: Application[]
@@ -34,6 +34,7 @@ export function ApplicationsClient({ applications: initial, userId }: Applicatio
   }
 
   async function deleteApplication(appId: string) {
+    if (!window.confirm('Delete this application? This cannot be undone.')) return
     await supabase.from('applications').delete().eq('id', appId).eq('user_id', userId)
     setApplications(prev => prev.filter(a => a.id !== appId))
   }
@@ -110,71 +111,68 @@ export function ApplicationsClient({ applications: initial, userId }: Applicatio
       ) : (
         <div className="space-y-3">
           {filtered.map(app => {
-            const job = app.jobs as { title: string; company: string; location: string; url: string } | null
-            const lastActivity = app.updated_at ?? app.applied_at
+            const job = app.jobs as { title: string; company: string | null; location: string | null; url: string; posted_at: string | null; found_at: string } | null
+            const dateSource = job?.posted_at ?? job?.found_at ?? app.applied_at
             return (
               <Card key={app.id}>
                 <CardContent className="py-4">
-                  <div className="flex items-start gap-4">
+                  <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <h3 className="font-semibold text-gray-900">{job?.title ?? 'Unknown'}</h3>
-                          <div className="flex items-center gap-3 mt-1 text-sm text-gray-500">
-                            {job?.company && (
-                              <span className="flex items-center gap-1">
-                                <Building2 className="w-3.5 h-3.5" />
-                                {job.company}
-                              </span>
-                            )}
-                            {job?.location && (
-                              <span className="flex items-center gap-1">
-                                <MapPin className="w-3.5 h-3.5" />
-                                {job.location}
-                              </span>
-                            )}
-                            <span className="text-xs text-gray-400">
-                              Last activity {formatDistanceToNow(new Date(lastActivity), { addSuffix: true })}
+                      {/* Company */}
+                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-0.5">
+                        {job?.company ?? '—'}
+                      </p>
+                      {/* Title */}
+                      <h3 className="font-semibold text-gray-900 leading-snug">{job?.title ?? 'Unknown'}</h3>
+                      {/* Meta row */}
+                      <div className="flex items-center gap-2 mt-1 text-xs text-gray-400">
+                        <span>{formatDistanceToNow(new Date(dateSource), { addSuffix: true })}</span>
+                        {job?.location && (
+                          <>
+                            <span>·</span>
+                            <span className="flex items-center gap-0.5 max-w-[180px] truncate">
+                              <MapPin className="w-3 h-3 flex-shrink-0" />
+                              <span className="truncate">{job.location}</span>
                             </span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          {job?.url && (
-                            <a
-                              href={job.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-gray-400 hover:text-gray-600"
-                            >
-                              <ExternalLink className="w-4 h-4" />
-                            </a>
-                          )}
-                          <div className="relative">
-                            <select
-                              value={app.status}
-                              onChange={e => updateStatus(app.id, e.target.value as ApplicationStatus)}
-                              className={`appearance-none pl-2.5 pr-7 py-1 rounded-full text-xs font-medium cursor-pointer border-0 focus:outline-none ${getStatusColor(app.status)}`}
-                            >
-                              {STATUSES.map(s => (
-                                <option key={s} value={s} className="bg-white text-gray-900">{s}</option>
-                              ))}
-                            </select>
-                            <ChevronDown className="w-3 h-3 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
-                          </div>
-                          <button
-                            onClick={() => deleteApplication(app.id)}
-                            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                            title="Delete application"
+                          </>
+                        )}
+                        {job?.url && (
+                          <a
+                            href={job.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="ml-1 text-gray-400 hover:text-gray-600 flex-shrink-0"
                           >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        )}
                       </div>
-
                       <NotesEditor
                         notes={app.notes}
                         onSave={notes => updateNotes(app.id, notes)}
                       />
+                    </div>
+                    {/* Actions */}
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <div className="relative">
+                        <select
+                          value={app.status}
+                          onChange={e => updateStatus(app.id, e.target.value as ApplicationStatus)}
+                          className={`appearance-none pl-2.5 pr-7 py-1 rounded-full text-xs font-medium cursor-pointer border-0 focus:outline-none ${getStatusColor(app.status)}`}
+                        >
+                          {STATUSES.map(s => (
+                            <option key={s} value={s} className="bg-white text-gray-900">{s}</option>
+                          ))}
+                        </select>
+                        <ChevronDown className="w-3 h-3 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      </div>
+                      <button
+                        onClick={() => deleteApplication(app.id)}
+                        className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Delete application"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
                 </CardContent>
@@ -307,7 +305,7 @@ function AddJobModal({
               onChange={e => setStatus(e.target.value as ApplicationStatus)}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white"
             >
-              {(['applied', 'interview', 'offer', 'rejected', 'saved'] as ApplicationStatus[]).map(s => (
+              {(['applied', 'interview', 'offer', 'rejected'] as ApplicationStatus[]).map(s => (
                 <option key={s} value={s} className="capitalize">{s}</option>
               ))}
             </select>
