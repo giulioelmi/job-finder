@@ -32,7 +32,6 @@ export function JobListClient({ jobs, userId, appliedJobIds: initialViewed }: Jo
   const supabase = createClient()
   const [viewed, setViewed] = useState<Set<string>>(initialViewed)
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set())
-  const [expandedId, setExpandedId] = useState<string | null>(null)
   const [markedApplied, setMarkedApplied] = useState<Set<string>>(new Set())
 
   const notifications = jobs.filter(n => !deletedIds.has(n.id))
@@ -77,14 +76,12 @@ export function JobListClient({ jobs, userId, appliedJobIds: initialViewed }: Jo
         if (!job) return null
         const isViewed = viewed.has(job.id)
         const isApplied = markedApplied.has(job.id)
-        const isExpanded = expandedId === notif.id
         const timestamp = job.posted_at ?? job.found_at
 
         return (
           <div
             key={notif.id}
-            className="rounded-xl border bg-card text-card-foreground shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-            onClick={() => setExpandedId(isExpanded ? null : notif.id)}
+            className="rounded-xl border bg-card text-card-foreground shadow-sm hover:shadow-md transition-shadow"
           >
             <CardContent className="py-4">
               <div className="flex items-start justify-between gap-4">
@@ -130,6 +127,20 @@ export function JobListClient({ jobs, userId, appliedJobIds: initialViewed }: Jo
                       </>
                     )}
                   </button>
+                  {isViewed && (
+                    <button
+                      onClick={(e) => handleMarkApplied(job, e)}
+                      disabled={isApplied}
+                      className={`inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                        isApplied
+                          ? 'bg-green-100 text-green-700 cursor-default'
+                          : 'bg-green-600 text-white hover:bg-green-700'
+                      }`}
+                    >
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      Applied
+                    </button>
+                  )}
                   <button
                     onClick={(e) => handleDelete(notif.id, e)}
                     className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
@@ -139,23 +150,6 @@ export function JobListClient({ jobs, userId, appliedJobIds: initialViewed }: Jo
                   </button>
                 </div>
               </div>
-
-              {isExpanded && (
-                <div className="mt-3 pt-3 border-t border-gray-100">
-                  <button
-                    onClick={(e) => handleMarkApplied(job, e)}
-                    disabled={isApplied}
-                    className={`inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                      isApplied
-                        ? 'bg-green-100 text-green-700 cursor-default'
-                        : 'bg-green-600 text-white hover:bg-green-700'
-                    }`}
-                  >
-                    <CheckCircle className="w-3.5 h-3.5" />
-                    {isApplied ? 'Applied' : 'Mark as Applied'}
-                  </button>
-                </div>
-              )}
             </CardContent>
           </div>
         )
