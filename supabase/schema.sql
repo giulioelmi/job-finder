@@ -7,6 +7,7 @@ create table if not exists user_settings (
   user_id uuid references auth.users(id) on delete cascade unique,
   search_all_companies boolean default false,
   companies text[] default array[]::text[],
+  ashby_companies text[] default array[]::text[],
   categories text[] default array['Data Scientist', 'Data Analyst'],
   job_types text[] default array['internship', 'fulltime'],
   location text default '',
