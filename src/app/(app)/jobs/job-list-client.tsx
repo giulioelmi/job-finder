@@ -1,10 +1,12 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { CardContent } from '@/components/ui/card'
 import { MapPin, Building2, Clock, ExternalLink, Eye, Trash2, CheckCircle } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
+
+const ITEMS_PER_PAGE = 10
 
 interface Job {
   id: string
@@ -27,9 +29,9 @@ export function JobListClient({ jobs, userId, appliedJobIds: initialViewed }: Jo
   const [viewed, setViewed] = useState<Set<string>>(initialViewed)
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set())
   const [markedApplied, setMarkedApplied] = useState<Set<string>>(new Set())
-
-  const visibleJobs = jobs.filter(j => !dismissedIds.has(j.id))
-
+  const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE)
+  const sentinelRef = useRef<HTMLDivElement>(null)
+  
   async function handleViewJob(job: Job, e: React.MouseEvent) {
     e.stopPropagation()
     if (!viewed.has(job.id)) {
@@ -60,7 +62,7 @@ export function JobListClient({ jobs, userId, appliedJobIds: initialViewed }: Jo
 
   return (
     <div className="space-y-3">
-      {visibleJobs.map(job => {
+
         const isViewed = viewed.has(job.id)
         const isApplied = markedApplied.has(job.id)
         const timestamp = job.posted_at ?? job.found_at
@@ -141,6 +143,7 @@ export function JobListClient({ jobs, userId, appliedJobIds: initialViewed }: Jo
           </div>
         )
       })}
+      {hasMore && <div ref={sentinelRef} className="h-8" />}
     </div>
   )
 }

@@ -12,7 +12,7 @@ export default async function JobsPage({
   searchParams: Promise<{ hours?: string }>
 }) {
   const { hours: hoursStr } = await searchParams
-  const hours = Math.min(168, Math.max(1, parseInt(hoursStr ?? '24', 10) || 24))
+  const hours = Math.min(168, Math.max(1, parseInt(hoursStr ?? '168', 10) || 168))
   const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString()
 
   const supabase = await createClient()
