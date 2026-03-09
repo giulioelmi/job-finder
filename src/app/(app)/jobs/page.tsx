@@ -1,5 +1,6 @@
 import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase/server'
+import { isInternshipTitle } from '@/lib/job-utils'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { JobListClient } from './job-list-client'
@@ -84,7 +85,7 @@ export default async function JobsPage({
       }
 
       // Job type filter
-      const isIntern = titleLower.includes('intern')
+      const isIntern = isInternshipTitle(job.title ?? '')
       const wantIntern = userJobTypes.includes('internship')
       const wantFull = userJobTypes.includes('fulltime')
       if (wantIntern && !wantFull && !isIntern) return false

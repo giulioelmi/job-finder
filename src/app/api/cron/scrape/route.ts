@@ -4,6 +4,7 @@ import { fetchGreenhouseJobs, GreenhouseJob } from '@/lib/greenhouse'
 import { fetchAshbyJobs, AshbyJob } from '@/lib/ashby'
 import { sendJobNotificationEmail } from '@/lib/email'
 import { ALL_GREENHOUSE_COMPANIES, ALL_ASHBY_COMPANIES } from '@/lib/categories'
+import { isInternshipTitle } from '@/lib/job-utils'
 
 type ScrapedJob = GreenhouseJob | AshbyJob
 
@@ -125,7 +126,7 @@ export async function GET(req: NextRequest) {
       if (userKeywords.length > 0 && !userKeywords.some(kw => titleLower.includes(kw))) return false
       if (userLocation && !j.location?.toLowerCase().includes(userLocation)) return false
 
-      const isIntern = titleLower.includes('intern')
+      const isIntern = isInternshipTitle(j.title)
       const wantIntern = userJobTypes.includes('internship')
       const wantFull = userJobTypes.includes('fulltime')
       if (wantIntern && !wantFull && !isIntern) return false

@@ -4,6 +4,7 @@ import { fetchGreenhouseJobs, GreenhouseJob } from '@/lib/greenhouse'
 import { fetchAshbyJobs, AshbyJob } from '@/lib/ashby'
 import { sendJobNotificationEmail } from '@/lib/email'
 import { ALL_GREENHOUSE_COMPANIES, ALL_ASHBY_COMPANIES } from '@/lib/categories'
+import { isInternshipTitle } from '@/lib/job-utils'
 
 // US state abbreviations for location matching
 const US_STATE_RE = /,\s*(al|ak|az|ar|ca|co|ct|de|fl|ga|hi|id|il|in|ia|ks|ky|la|me|md|ma|mi|mn|ms|mo|mt|ne|nv|nh|nj|nm|ny|nc|nd|oh|ok|or|pa|ri|sc|sd|tn|tx|ut|vt|va|wa|wv|wi|wy|dc)(\s|,|$)/i
@@ -138,7 +139,7 @@ export async function POST(_req: NextRequest) {
     const titleLower = j.title.toLowerCase()
     if (userKeywords.length > 0 && !userKeywords.some(kw => titleLower.includes(kw))) return false
 
-    const isIntern = titleLower.includes('intern')
+    const isIntern = isInternshipTitle(j.title)
     const wantIntern = userJobTypes.includes('internship')
     const wantFull = userJobTypes.includes('fulltime')
     if (wantIntern && !wantFull && !isIntern) return false

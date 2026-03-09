@@ -30,16 +30,7 @@ interface AshbyApiResponse {
 }
 
 // Returns true if the job title matches the requested job types.
-// Heuristic: titles containing "intern" are internships; everything else is full-time.
-function matchesJobType(title: string, jobTypes: string[]): boolean {
-  if (jobTypes.length === 0 || (jobTypes.includes('internship') && jobTypes.includes('fulltime'))) {
-    return true
-  }
-  const isIntern = title.toLowerCase().includes('intern')
-  if (jobTypes.includes('internship') && !jobTypes.includes('fulltime')) return isIntern
-  if (jobTypes.includes('fulltime') && !jobTypes.includes('internship')) return !isIntern
-  return true
-}
+import { matchesJobType } from './job-utils'
 
 // Fetch open jobs for an Ashby company board.
 //   keywords    – filter by job title containing any keyword (empty = all)
