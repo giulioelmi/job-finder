@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { CardContent } from '@/components/ui/card'
 import { MapPin, Building2, Clock, ExternalLink, Eye, Trash2, CheckCircle } from 'lucide-react'
@@ -31,7 +31,22 @@ export function JobListClient({ jobs, userId, appliedJobIds: initialViewed }: Jo
   const [markedApplied, setMarkedApplied] = useState<Set<string>>(new Set())
   const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE)
   const sentinelRef = useRef<HTMLDivElement>(null)
-  
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current
+    if (!sentinel) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setVisibleCount(prev => prev + ITEMS_PER_PAGE)
+        }
+      },
+      { threshold: 0.1 }
+    )
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [])
+
   async function handleViewJob(job: Job, e: React.MouseEvent) {
     e.stopPropagation()
     if (!viewed.has(job.id)) {
@@ -60,9 +75,13 @@ export function JobListClient({ jobs, userId, appliedJobIds: initialViewed }: Jo
     setDismissedIds(prev => new Set(prev).add(jobId))
   }
 
+  const filteredJobs = jobs.filter(job => !dismissedIds.has(job.id))
+  const visibleJobs = filteredJobs.slice(0, visibleCount)
+  const hasMore = filteredJobs.length > visibleCount
+
   return (
     <div className="space-y-3">
-
+      {visibleJobs.map(job => {
         const isViewed = viewed.has(job.id)
         const isApplied = markedApplied.has(job.id)
         const timestamp = job.posted_at ?? job.found_at
