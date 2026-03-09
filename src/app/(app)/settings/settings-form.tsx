@@ -37,7 +37,6 @@ export function SettingsForm({ userId, userEmail, initialSettings }: SettingsFor
       ? (initialSettings.job_types as JobTypeId[])
       : DEFAULT_JOB_TYPES)
   )
-  const [location, setLocation] = useState(initialSettings?.location ?? '')
   const [emailNotifications, setEmailNotifications] = useState(initialSettings?.email_notifications ?? true)
   const [notificationEmail, setNotificationEmail] = useState(initialSettings?.notification_email ?? userEmail)
   const [saving, setSaving] = useState(false)
@@ -153,7 +152,6 @@ export function SettingsForm({ userId, userEmail, initialSettings }: SettingsFor
           ashby_companies: ashbyCompanies,
           categories: jobTitles,
           job_types: jobTypes,
-          location,
           email_notifications: emailNotifications,
           notification_email: notificationEmail || null,
         },
@@ -315,8 +313,7 @@ export function SettingsForm({ userId, userEmail, initialSettings }: SettingsFor
         <CardHeader>
           <CardTitle>Ashby Companies</CardTitle>
           <p className="text-sm text-gray-500 mt-1">
-            Track additional companies that post jobs via Ashby.{' '}
-            {searchAllCompanies && <span className="text-blue-600">Active — all Ashby companies are searched.</span>}
+            Track additional companies that post jobs via Ashby.
           </p>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -392,9 +389,6 @@ export function SettingsForm({ userId, userEmail, initialSettings }: SettingsFor
                 <code className="bg-gray-100 px-1 py-0.5 rounded">api.ashbyhq.com/posting-api/job-board/&#123;slug&#125;</code>
               </p>
             </div>
-          )}
-          {searchAllCompanies && (
-            <p className="text-sm text-gray-400">All tracked Ashby companies are searched in &ldquo;All companies&rdquo; mode.</p>
           )}
         </CardContent>
       </Card>
@@ -555,25 +549,6 @@ export function SettingsForm({ userId, userEmail, initialSettings }: SettingsFor
               </div>
             </div>
           )}
-        </CardContent>
-      </Card>
-
-      {/* Location */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Location</CardTitle>
-          <p className="text-sm text-gray-500 mt-1">
-            Only show jobs matching this location. Leave empty for all locations.
-          </p>
-        </CardHeader>
-        <CardContent>
-          <input
-            type="text"
-            value={location}
-            onChange={e => setLocation(e.target.value)}
-            placeholder="e.g. United States, New York, Remote"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-          />
         </CardContent>
       </Card>
 

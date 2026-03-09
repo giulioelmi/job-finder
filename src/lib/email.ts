@@ -19,7 +19,10 @@ export async function sendJobNotificationEmail(
   jobs: EmailJob[]
 ): Promise<void> {
   if (jobs.length === 0) return
-  if (!process.env.RESEND_API_KEY) return
+  if (!process.env.RESEND_API_KEY) {
+    console.error('[email] RESEND_API_KEY is not set — email not sent')
+    return
+  }
   const resend = new Resend(process.env.RESEND_API_KEY)
 
   const count = jobs.length
@@ -44,7 +47,7 @@ export async function sendJobNotificationEmail(
     ? `1 new job just posted`
     : `${count} new jobs just posted`
 
-  await resend.emails.send({
+  const { error } = await resend.emails.send({
     from: process.env.RESEND_FROM_EMAIL ?? 'JobFinder <noreply@yourdomain.com>',
     to,
     subject,
@@ -64,4 +67,7 @@ export async function sendJobNotificationEmail(
       </div>
     `,
   })
+  if (error) {
+    console.error('[email] Resend send failed:', error)
+  }
 }

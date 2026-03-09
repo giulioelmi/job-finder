@@ -1,6 +1,20 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 
+// US state abbreviations for location matching
+const US_STATE_RE = /,\s*(al|ak|az|ar|ca|co|ct|de|fl|ga|hi|id|il|in|ia|ks|ky|la|me|md|ma|mi|mn|ms|mo|mt|ne|nv|nh|nj|nm|ny|nc|nd|oh|ok|or|pa|ri|sc|sd|tn|tx|ut|vt|va|wa|wv|wi|wy|dc)(\s|,|$)/i
+
+function isUSLocation(location: string | null | undefined): boolean {
+  if (!location) return true
+  const loc = location.toLowerCase()
+  if (loc.includes('united states')) return true
+  if (loc.includes('u.s.')) return true
+  if (loc.includes('usa')) return true
+  if (loc.includes('remote')) return true
+  if (US_STATE_RE.test(loc)) return true
+  return false
+}
+
 function matchesJobType(title: string, jobTypes: string[]): boolean {
   if (jobTypes.length === 0 || (jobTypes.includes('internship') && jobTypes.includes('fulltime'))) {
     return true
@@ -31,7 +45,6 @@ export async function POST() {
   const userAshbyCompanies: string[] = (settings?.ashby_companies ?? []).map((c: string) => c.toLowerCase())
   const keywords: string[] = ((settings?.categories ?? []) as string[]).map((k: string) => k.toLowerCase())
   const jobTypes: string[] = settings?.job_types ?? ['internship', 'fulltime']
-  const userLocation = (settings?.location ?? '').trim().toLowerCase()
 
   // Fetch jobs found in the last 7 days from the local DB
   const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
@@ -68,8 +81,8 @@ export async function POST() {
     // Keyword filter
     if (keywords.length > 0 && !keywords.some(kw => titleLower.includes(kw))) return false
 
-    // Location filter
-    if (userLocation && !job.location?.toLowerCase().includes(userLocation)) return false
+    // Location filter — US only
+    if (!isUSLocation(job.location)) return false
 
     // Job type filter
     if (!matchesJobType(job.title, jobTypes)) return false

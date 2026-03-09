@@ -5,6 +5,20 @@ import { fetchAshbyJobs, AshbyJob } from '@/lib/ashby'
 import { sendJobNotificationEmail } from '@/lib/email'
 import { ALL_GREENHOUSE_COMPANIES, ALL_ASHBY_COMPANIES } from '@/lib/categories'
 
+// US state abbreviations for location matching
+const US_STATE_RE = /,\s*(al|ak|az|ar|ca|co|ct|de|fl|ga|hi|id|il|in|ia|ks|ky|la|me|md|ma|mi|mn|ms|mo|mt|ne|nv|nh|nj|nm|ny|nc|nd|oh|ok|or|pa|ri|sc|sd|tn|tx|ut|vt|va|wa|wv|wi|wy|dc)(\s|,|$)/i
+
+function isUSLocation(location: string | null | undefined): boolean {
+  if (!location) return true
+  const loc = location.toLowerCase()
+  if (loc.includes('united states')) return true
+  if (loc.includes('u.s.')) return true
+  if (loc.includes('usa')) return true
+  if (loc.includes('remote')) return true
+  if (US_STATE_RE.test(loc)) return true
+  return false
+}
+
 type ScrapedJob = GreenhouseJob | AshbyJob
 
 // Manual trigger — fetches companies based on user settings, filters by keywords and job type.
@@ -35,7 +49,6 @@ export async function POST(_req: NextRequest) {
     )
   }
 
-  const userLocation = (settings?.location ?? '').trim().toLowerCase()
   let totalFound = 0
   let totalNew = 0
   const allNewJobs: ScrapedJob[] = []
@@ -100,9 +113,7 @@ export async function POST(_req: NextRequest) {
 
     if (!jobRows) continue
 
-    const relevantJobRows = userLocation
-      ? jobRows.filter(j => j.location?.toLowerCase().includes(userLocation))
-      : jobRows
+    const relevantJobRows = jobRows.filter(j => isUSLocation(j.location))
 
     if (relevantJobRows.length === 0) continue
 
