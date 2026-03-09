@@ -21,12 +21,13 @@ export default async function JobsPage({
   // Fetch current user settings to re-apply filters on display
   const { data: settings } = await supabase
     .from('user_settings')
-    .select('search_all_companies, companies, categories, job_types, location')
+    .select('search_all_companies, companies, ashby_companies, categories, job_types, location')
     .eq('user_id', user!.id)
     .single()
 
   const searchAll: boolean = settings?.search_all_companies ?? false
-  const userCompanies: string[] = searchAll ? [] : ((settings?.companies ?? []) as string[]).map((c: string) => c.toLowerCase())
+  const userGhCompanies: string[] = searchAll ? [] : ((settings?.companies ?? []) as string[]).map((c: string) => c.toLowerCase())
+  const userAshbyCompanies: string[] = searchAll ? [] : ((settings?.ashby_companies ?? []) as string[]).map((c: string) => c.toLowerCase())
   const userKeywords: string[] = ((settings?.categories ?? []) as string[]).map((k: string) => k.toLowerCase())
   const userJobTypes: string[] = (settings?.job_types as string[] | null) ?? ['internship', 'fulltime']
   const userLocation = (settings?.location ?? '').trim().toLowerCase()
@@ -62,11 +63,16 @@ export default async function JobsPage({
       // Keyword filter (skip if no keywords = show all)
       if (userKeywords.length > 0 && !userKeywords.some(kw => titleLower.includes(kw))) return false
 
-      // Company filter — extract slug from external_id ("gh_{slug}_{numericId}")
-      if (!searchAll && userCompanies.length > 0) {
+      // Company filter — check prefix to route to the correct list (GH vs Ashby)
+      if (!searchAll) {
         const parts = (job.external_id ?? '').split('_')
+        const source = parts[0]  // "gh" or "ashby"
         const slug = parts.slice(1, -1).join('_').toLowerCase()
-        if (!userCompanies.includes(slug)) return false
+        if (source === 'ashby') {
+          if (userAshbyCompanies.length > 0 && !userAshbyCompanies.includes(slug)) return false
+        } else {
+          if (userGhCompanies.length > 0 && !userGhCompanies.includes(slug)) return false
+        }
       }
 
       // Job type filter
