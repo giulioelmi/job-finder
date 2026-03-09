@@ -1,10 +1,12 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { CardContent } from '@/components/ui/card'
 import { MapPin, Building2, Clock, ExternalLink, Eye, Trash2, CheckCircle } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
+
+const ITEMS_PER_PAGE = 10
 
 interface Job {
   id: string
@@ -33,8 +35,27 @@ export function JobListClient({ jobs, userId, appliedJobIds: initialViewed }: Jo
   const [viewed, setViewed] = useState<Set<string>>(initialViewed)
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set())
   const [markedApplied, setMarkedApplied] = useState<Set<string>>(new Set())
+  const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE)
+  const sentinelRef = useRef<HTMLDivElement>(null)
 
   const notifications = jobs.filter(n => !deletedIds.has(n.id))
+  const visibleNotifications = notifications.slice(0, visibleCount)
+  const hasMore = visibleCount < notifications.length
+
+  const loadMore = useCallback(() => {
+    setVisibleCount(prev => Math.min(prev + ITEMS_PER_PAGE, notifications.length))
+  }, [notifications.length])
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current
+    if (!sentinel) return
+    const observer = new IntersectionObserver(
+      (entries) => { if (entries[0].isIntersecting) loadMore() },
+      { rootMargin: '200px' }
+    )
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [loadMore])
 
   async function handleViewJob(job: Job, e: React.MouseEvent) {
     e.stopPropagation()
@@ -71,7 +92,7 @@ export function JobListClient({ jobs, userId, appliedJobIds: initialViewed }: Jo
 
   return (
     <div className="space-y-3">
-      {notifications.map(notif => {
+      {visibleNotifications.map(notif => {
         const job = notif.jobs
         if (!job) return null
         const isViewed = viewed.has(job.id)
@@ -154,6 +175,7 @@ export function JobListClient({ jobs, userId, appliedJobIds: initialViewed }: Jo
           </div>
         )
       })}
+      {hasMore && <div ref={sentinelRef} className="h-8" />}
     </div>
   )
 }
