@@ -1,5 +1,6 @@
 import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase/server'
+import { isInternshipTitle } from '@/lib/job-utils'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { JobListClient } from './job-list-client'
@@ -18,7 +19,7 @@ export default async function JobsPage({
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  // Fetch current user settings to re-apply filters on display
+  // Fetch current user settings to apply as display filters
   const { data: settings } = await supabase
     .from('user_settings')
     .select('search_all_companies, companies, ashby_companies, categories, job_types')
@@ -43,14 +44,14 @@ export default async function JobsPage({
     return false
   }
 
-  // Fetch all notifications within the 7-day window, then filter in JS
+  // Query the jobs catalog directly — all jobs found in the last 7 days
   const sevenDaysCutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
-  const { data: notifications } = await supabase
-    .from('job_notifications')
-    .select('id, notified_at, jobs(id, external_id, title, company, location, url, found_at, posted_at)')
-    .eq('user_id', user!.id)
-    .gte('notified_at', sevenDaysCutoff)
-    .order('notified_at', { ascending: false })
+  const { data: jobsData } = await supabase
+    .from('jobs')
+    .select('id, external_id, title, company, location, url, found_at, posted_at')
+    .gte('found_at', sevenDaysCutoff)
+    .order('found_at', { ascending: false })
+    .limit(2000)
 
   const { data: existingApps } = await supabase
     .from('applications')
@@ -59,14 +60,11 @@ export default async function JobsPage({
 
   const appliedJobIds = new Set((existingApps ?? []).map(a => a.job_id))
 
-  // Filter by current settings + time window, then sort newest-first
-  const jobs = (notifications ?? [])
-    .filter(n => {
-      const job = n.jobs as { external_id?: string; title?: string; company?: string; location?: string | null; posted_at?: string | null; found_at?: string } | null
-      if (!job) return false
-
-      // Time filter
-      const timestamp = job.posted_at ?? job.found_at ?? n.notified_at
+  // Filter by user's current settings and the selected time window
+  const jobs = (jobsData ?? [])
+    .filter(job => {
+      // Time filter against the user-selected window
+      const timestamp = job.posted_at ?? job.found_at
       if (new Date(timestamp) < new Date(cutoff)) return false
 
       const titleLower = (job.title ?? '').toLowerCase()
@@ -74,7 +72,7 @@ export default async function JobsPage({
       // Keyword filter (skip if no keywords = show all)
       if (userKeywords.length > 0 && !userKeywords.some(kw => titleLower.includes(kw))) return false
 
-      // Company filter — check prefix to route to the correct list (GH vs Ashby)
+      // Company filter — parse source and slug from external_id
       if (!searchAll) {
         const parts = (job.external_id ?? '').split('_')
         const source = parts[0]  // "gh" or "ashby"
@@ -87,7 +85,7 @@ export default async function JobsPage({
       }
 
       // Job type filter
-      const isIntern = titleLower.includes('intern')
+      const isIntern = isInternshipTitle(job.title ?? '')
       const wantIntern = userJobTypes.includes('internship')
       const wantFull = userJobTypes.includes('fulltime')
       if (wantIntern && !wantFull && !isIntern) return false
@@ -99,11 +97,8 @@ export default async function JobsPage({
       return true
     })
     .sort((a, b) => {
-      const getTs = (n: typeof a) => {
-        const job = n.jobs as { posted_at?: string | null; found_at?: string } | null
-        return new Date(job?.posted_at ?? job?.found_at ?? n.notified_at).getTime()
-      }
-      return getTs(b) - getTs(a)
+      const ts = (j: typeof a) => new Date(j.posted_at ?? j.found_at).getTime()
+      return ts(b) - ts(a)
     })
 
   return (
@@ -137,7 +132,7 @@ export default async function JobsPage({
         </Card>
       ) : (
         <JobListClient
-          jobs={jobs as never}
+          jobs={jobs}
           userId={user!.id}
           appliedJobIds={appliedJobIds}
         />

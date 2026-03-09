@@ -18,14 +18,8 @@ interface Job {
   found_at: string
 }
 
-interface Notification {
-  id: string
-  notified_at: string
-  jobs: Job | null
-}
-
 interface JobListClientProps {
-  jobs: Notification[]
+  jobs: Job[]
   userId: string
   appliedJobIds: Set<string>
 }
@@ -33,30 +27,11 @@ interface JobListClientProps {
 export function JobListClient({ jobs, userId, appliedJobIds: initialViewed }: JobListClientProps) {
   const supabase = createClient()
   const [viewed, setViewed] = useState<Set<string>>(initialViewed)
-  const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set())
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set())
   const [markedApplied, setMarkedApplied] = useState<Set<string>>(new Set())
   const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE)
   const sentinelRef = useRef<HTMLDivElement>(null)
-
-  const notifications = jobs.filter(n => !deletedIds.has(n.id))
-  const visibleNotifications = notifications.slice(0, visibleCount)
-  const hasMore = visibleCount < notifications.length
-
-  const loadMore = useCallback(() => {
-    setVisibleCount(prev => Math.min(prev + ITEMS_PER_PAGE, notifications.length))
-  }, [notifications.length])
-
-  useEffect(() => {
-    const sentinel = sentinelRef.current
-    if (!sentinel) return
-    const observer = new IntersectionObserver(
-      (entries) => { if (entries[0].isIntersecting) loadMore() },
-      { rootMargin: '200px' }
-    )
-    observer.observe(sentinel)
-    return () => observer.disconnect()
-  }, [loadMore])
-
+  
   async function handleViewJob(job: Job, e: React.MouseEvent) {
     e.stopPropagation()
     if (!viewed.has(job.id)) {
@@ -80,28 +55,21 @@ export function JobListClient({ jobs, userId, appliedJobIds: initialViewed }: Jo
     setViewed(prev => new Set(prev).add(job.id))
   }
 
-  async function handleDelete(notificationId: string, e: React.MouseEvent) {
+  function handleDismiss(jobId: string, e: React.MouseEvent) {
     e.stopPropagation()
-    await supabase
-      .from('job_notifications')
-      .delete()
-      .eq('id', notificationId)
-      .eq('user_id', userId)
-    setDeletedIds(prev => new Set(prev).add(notificationId))
+    setDismissedIds(prev => new Set(prev).add(jobId))
   }
 
   return (
     <div className="space-y-3">
-      {visibleNotifications.map(notif => {
-        const job = notif.jobs
-        if (!job) return null
+
         const isViewed = viewed.has(job.id)
         const isApplied = markedApplied.has(job.id)
         const timestamp = job.posted_at ?? job.found_at
 
         return (
           <div
-            key={notif.id}
+            key={job.id}
             className="rounded-xl border bg-card text-card-foreground shadow-sm hover:shadow-md transition-shadow"
           >
             <CardContent className="py-4">
@@ -163,9 +131,9 @@ export function JobListClient({ jobs, userId, appliedJobIds: initialViewed }: Jo
                     </button>
                   )}
                   <button
-                    onClick={(e) => handleDelete(notif.id, e)}
+                    onClick={(e) => handleDismiss(job.id, e)}
                     className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                    title="Remove job"
+                    title="Dismiss job"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
