@@ -32,20 +32,24 @@ export function JobListClient({ jobs, userId, appliedJobIds: initialViewed }: Jo
   const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE)
   const sentinelRef = useRef<HTMLDivElement>(null)
 
+  const filteredJobs = jobs.filter(j => !dismissedIds.has(j.id))
+  const visibleJobs = filteredJobs.slice(0, visibleCount)
+  const hasMore = visibleCount < filteredJobs.length
+
+  const loadMore = useCallback(() => {
+    setVisibleCount(prev => Math.min(prev + ITEMS_PER_PAGE, filteredJobs.length))
+  }, [filteredJobs.length])
+
   useEffect(() => {
     const sentinel = sentinelRef.current
     if (!sentinel) return
     const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting) {
-          setVisibleCount(prev => prev + ITEMS_PER_PAGE)
-        }
-      },
-      { threshold: 0.1 }
+      (entries) => { if (entries[0].isIntersecting) loadMore() },
+      { rootMargin: '200px' }
     )
     observer.observe(sentinel)
     return () => observer.disconnect()
-  }, [])
+  }, [loadMore])
 
   async function handleViewJob(job: Job, e: React.MouseEvent) {
     e.stopPropagation()
@@ -81,7 +85,7 @@ export function JobListClient({ jobs, userId, appliedJobIds: initialViewed }: Jo
 
   return (
     <div className="space-y-3">
-      {visibleJobs.map(job => {
+      {visibleJobs.map((job) => {
         const isViewed = viewed.has(job.id)
         const isApplied = markedApplied.has(job.id)
         const timestamp = job.posted_at ?? job.found_at
