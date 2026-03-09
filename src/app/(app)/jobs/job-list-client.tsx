@@ -16,14 +16,8 @@ interface Job {
   found_at: string
 }
 
-interface Notification {
-  id: string
-  notified_at: string
-  jobs: Job | null
-}
-
 interface JobListClientProps {
-  jobs: Notification[]
+  jobs: Job[]
   userId: string
   appliedJobIds: Set<string>
 }
@@ -31,10 +25,10 @@ interface JobListClientProps {
 export function JobListClient({ jobs, userId, appliedJobIds: initialViewed }: JobListClientProps) {
   const supabase = createClient()
   const [viewed, setViewed] = useState<Set<string>>(initialViewed)
-  const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set())
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set())
   const [markedApplied, setMarkedApplied] = useState<Set<string>>(new Set())
 
-  const notifications = jobs.filter(n => !deletedIds.has(n.id))
+  const visibleJobs = jobs.filter(j => !dismissedIds.has(j.id))
 
   async function handleViewJob(job: Job, e: React.MouseEvent) {
     e.stopPropagation()
@@ -59,28 +53,21 @@ export function JobListClient({ jobs, userId, appliedJobIds: initialViewed }: Jo
     setViewed(prev => new Set(prev).add(job.id))
   }
 
-  async function handleDelete(notificationId: string, e: React.MouseEvent) {
+  function handleDismiss(jobId: string, e: React.MouseEvent) {
     e.stopPropagation()
-    await supabase
-      .from('job_notifications')
-      .delete()
-      .eq('id', notificationId)
-      .eq('user_id', userId)
-    setDeletedIds(prev => new Set(prev).add(notificationId))
+    setDismissedIds(prev => new Set(prev).add(jobId))
   }
 
   return (
     <div className="space-y-3">
-      {notifications.map(notif => {
-        const job = notif.jobs
-        if (!job) return null
+      {visibleJobs.map(job => {
         const isViewed = viewed.has(job.id)
         const isApplied = markedApplied.has(job.id)
         const timestamp = job.posted_at ?? job.found_at
 
         return (
           <div
-            key={notif.id}
+            key={job.id}
             className="rounded-xl border bg-card text-card-foreground shadow-sm hover:shadow-md transition-shadow"
           >
             <CardContent className="py-4">
@@ -142,9 +129,9 @@ export function JobListClient({ jobs, userId, appliedJobIds: initialViewed }: Jo
                     </button>
                   )}
                   <button
-                    onClick={(e) => handleDelete(notif.id, e)}
+                    onClick={(e) => handleDismiss(job.id, e)}
                     className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                    title="Remove job"
+                    title="Dismiss job"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
