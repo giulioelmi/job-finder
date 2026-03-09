@@ -71,11 +71,6 @@ export function SettingsForm({ userId, userEmail, initialSettings }: SettingsFor
     t.toLowerCase().includes(titleQuery.toLowerCase()) && !jobTitles.includes(t)
   ).slice(0, 8)
 
-  const showCustomTitle =
-    titleQuery.trim().length > 0 &&
-    !JOB_TITLE_SUGGESTIONS.some(t => t.toLowerCase() === titleQuery.trim().toLowerCase()) &&
-    !jobTitles.includes(titleQuery.trim())
-
   const filteredCompanies = COMPANY_SUGGESTIONS.filter(c =>
     c.toLowerCase().includes(companyQuery.toLowerCase()) && !companies.includes(c)
   ).slice(0, 8)
@@ -314,7 +309,7 @@ export function SettingsForm({ userId, userEmail, initialSettings }: SettingsFor
         <CardHeader>
           <CardTitle>Job Title Keywords</CardTitle>
           <p className="text-sm text-gray-500 mt-1">
-            Choose whether to receive all new jobs or only those matching specific title keywords.
+            Choose whether to receive all new jobs or only those matching specific keywords — pick from suggestions or type your own.
           </p>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -398,35 +393,38 @@ export function SettingsForm({ userId, userEmail, initialSettings }: SettingsFor
                     onFocus={() => setShowTitleDropdown(true)}
                     onKeyDown={e => {
                       if (e.key === 'Enter' && titleQuery.trim()) {
-                        if (filteredTitles.length > 0) addTitle(filteredTitles[0])
-                        else addTitle(titleQuery.trim())
+                        addTitle(titleQuery.trim())
                       } else if (e.key === 'Escape') setShowTitleDropdown(false)
                     }}
-                    placeholder="Search job titles, e.g. Data Analyst..."
+                    placeholder="Type a keyword or search suggestions, e.g. engineer, analyst..."
                     className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                   />
                 </div>
-                {showTitleDropdown && (filteredTitles.length > 0 || showCustomTitle) && (
+                {showTitleDropdown && titleQuery.trim().length > 0 && (filteredTitles.length > 0 || !jobTitles.includes(titleQuery.trim())) && (
                   <div
                     ref={titleDropdownRef}
                     className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden"
                   >
-                    {filteredTitles.map(title => (
-                      <button
-                        key={title}
-                        onMouseDown={e => { e.preventDefault(); addTitle(title) }}
-                        className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-800 transition-colors"
-                      >
-                        {title}
-                      </button>
-                    ))}
-                    {showCustomTitle && (
+                    {!jobTitles.includes(titleQuery.trim()) && (
                       <button
                         onMouseDown={e => { e.preventDefault(); addTitle(titleQuery.trim()) }}
-                        className="w-full text-left px-4 py-2.5 text-sm text-gray-500 hover:bg-gray-50 border-t border-gray-100"
+                        className="w-full text-left px-4 py-2.5 text-sm text-blue-600 font-medium hover:bg-blue-50 transition-colors"
                       >
                         Add &ldquo;{titleQuery.trim()}&rdquo;
                       </button>
+                    )}
+                    {filteredTitles.length > 0 && (
+                      <div className={!jobTitles.includes(titleQuery.trim()) ? 'border-t border-gray-100' : ''}>
+                        {filteredTitles.map(title => (
+                          <button
+                            key={title}
+                            onMouseDown={e => { e.preventDefault(); addTitle(title) }}
+                            className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-800 transition-colors"
+                          >
+                            {title}
+                          </button>
+                        ))}
+                      </div>
                     )}
                   </div>
                 )}
