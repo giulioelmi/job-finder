@@ -70,11 +70,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ success: true, message: 'No companies configured by any user.' })
   }
 
-  // Clean up notifications older than 24 hours
+  // Clean up notifications older than 7 days (matches the max time window shown in the UI)
   await supabase
     .from('job_notifications')
     .delete()
-    .lt('notified_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+    .lt('notified_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
 
   // Fetch jobs created in the last 30 minutes from both APIs in parallel
   const createdAfter = new Date(Date.now() - 30 * 60 * 1000)
