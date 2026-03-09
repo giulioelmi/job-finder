@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { CardContent } from '@/components/ui/card'
 import { MapPin, Building2, Clock, ExternalLink, Eye, Trash2, CheckCircle } from 'lucide-react'
@@ -78,6 +78,10 @@ export function JobListClient({ jobs, userId, appliedJobIds: initialViewed }: Jo
     e.stopPropagation()
     setDismissedIds(prev => new Set(prev).add(jobId))
   }
+
+  const filteredJobs = jobs.filter(job => !dismissedIds.has(job.id))
+  const visibleJobs = filteredJobs.slice(0, visibleCount)
+  const hasMore = filteredJobs.length > visibleCount
 
   return (
     <div className="space-y-3">
