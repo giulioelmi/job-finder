@@ -16,12 +16,9 @@ export type AshbyFetchResult =
 interface AshbyApiJob {
   id: string
   title: string
-  teamName: string | null
-  locationName: string | null
-  jobPostingLocationNames: string[] | null
-  applyUrl: string
-  publishedDate: string | null
-  updatedAt: string | null
+  location: string | null
+  jobUrl: string
+  publishedAt: string | null
 }
 
 interface AshbyApiResponse {
@@ -87,9 +84,9 @@ export async function fetchAshbyJobs(
       title: job.title,
       company: companyName,
       slug: companySlug,
-      location: job.locationName || (job.jobPostingLocationNames?.[0] ?? null),
-      url: job.applyUrl,
-      posted_at: job.publishedDate || job.updatedAt || null,
+      location: job.location || null,
+      url: job.jobUrl,
+      posted_at: job.publishedAt || null,
     }))
 
   if (createdAfter) {
