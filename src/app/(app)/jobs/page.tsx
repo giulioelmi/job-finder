@@ -21,7 +21,7 @@ export default async function JobsPage({
   // Fetch current user settings to re-apply filters on display
   const { data: settings } = await supabase
     .from('user_settings')
-    .select('search_all_companies, companies, ashby_companies, categories, job_types, location')
+    .select('search_all_companies, companies, ashby_companies, categories, job_types')
     .eq('user_id', user!.id)
     .single()
 
@@ -30,7 +30,18 @@ export default async function JobsPage({
   const userAshbyCompanies: string[] = searchAll ? [] : ((settings?.ashby_companies ?? []) as string[]).map((c: string) => c.toLowerCase())
   const userKeywords: string[] = ((settings?.categories ?? []) as string[]).map((k: string) => k.toLowerCase())
   const userJobTypes: string[] = (settings?.job_types as string[] | null) ?? ['internship', 'fulltime']
-  const userLocation = (settings?.location ?? '').trim().toLowerCase()
+
+  const US_STATE_RE = /,\s*(al|ak|az|ar|ca|co|ct|de|fl|ga|hi|id|il|in|ia|ks|ky|la|me|md|ma|mi|mn|ms|mo|mt|ne|nv|nh|nj|nm|ny|nc|nd|oh|ok|or|pa|ri|sc|sd|tn|tx|ut|vt|va|wa|wv|wi|wy|dc)(\s|,|$)/i
+  function isUSLocation(location: string | null | undefined): boolean {
+    if (!location) return true
+    const loc = location.toLowerCase()
+    if (loc.includes('united states')) return true
+    if (loc.includes('u.s.')) return true
+    if (loc.includes('usa')) return true
+    if (loc.includes('remote')) return true
+    if (US_STATE_RE.test(loc)) return true
+    return false
+  }
 
   // Fetch all notifications within the 7-day window, then filter in JS
   const sevenDaysCutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
@@ -82,8 +93,8 @@ export default async function JobsPage({
       if (wantIntern && !wantFull && !isIntern) return false
       if (wantFull && !wantIntern && isIntern) return false
 
-      // Location filter
-      if (userLocation && !job.location?.toLowerCase().includes(userLocation)) return false
+      // US location filter
+      if (!isUSLocation(job.location)) return false
 
       return true
     })
