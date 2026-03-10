@@ -2,18 +2,17 @@ export const dynamic = 'force-dynamic'
 
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { Sidebar } from '@/components/layout/sidebar'
+import { AppLayout } from '@/components/layout/app-layout'
 
-export default async function AppLayout({ children }: { children: React.ReactNode }) {
+export default async function Layout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) redirect('/login')
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
-      <Sidebar userEmail={user.email} />
-      <main className="flex-1 overflow-auto">{children}</main>
-    </div>
+    <AppLayout userEmail={user.email}>
+      {children}
+    </AppLayout>
   )
 }
