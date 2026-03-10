@@ -9,7 +9,7 @@ import type { Metadata } from 'next'
 export const metadata: Metadata = {
   title: 'Bamboo — Automated Job Alerts for Tech Roles',
   description:
-    'Bamboo scans 60+ top tech companies on Greenhouse every 20 minutes and emails you when matching jobs appear. Track applications, filter by role and company, and never miss an opening.',
+    'Bamboo scans 200+ top tech companies on Greenhouse every 20 minutes and emails you when matching jobs appear. Track applications, filter by role and company, and never miss an opening.',
   keywords: [
     'job alert tool',
     'automated job notifications',
@@ -23,7 +23,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Bamboo — Automated Job Alerts for Tech Roles',
     description:
-      'Get email alerts when your target companies post new jobs. Covers Stripe, Anthropic, OpenAI, Databricks, and 60+ more.',
+      'Get email alerts when your target companies post new jobs. Covers Stripe, Anthropic, OpenAI, Databricks, and 200+ more.',
     type: 'website',
   },
 }
@@ -37,7 +37,7 @@ const jsonLd = {
       applicationCategory: 'BusinessApplication',
       operatingSystem: 'Web',
       description:
-        'Bamboo is a free job alert and application tracking tool that monitors Greenhouse job boards at 60+ top tech companies every 20 minutes. Users configure job title keywords, companies, and job types (internship or full-time) and receive email notifications when new matching positions are posted.',
+        'Bamboo is a free job alert and application tracking tool that monitors Greenhouse job boards at 200+ top tech companies every 20 minutes. Users configure job title keywords, companies, and job types (internship or full-time) and receive email notifications when new matching positions are posted.',
       offers: {
         '@type': 'Offer',
         price: '0',
@@ -46,7 +46,7 @@ const jsonLd = {
       featureList: [
         'Automated job scanning every 20 minutes',
         'Email alerts for new job postings',
-        'Supports 60+ top tech companies via Greenhouse',
+        'Supports 200+ top tech companies via Greenhouse',
         'Filter by job title keyword',
         'Filter by internship or full-time',
         'Application status tracker (applied, interview, offer, rejected)',
@@ -61,7 +61,7 @@ const jsonLd = {
           name: 'What is Bamboo?',
           acceptedAnswer: {
             '@type': 'Answer',
-            text: 'Bamboo is a free web app that automatically monitors job boards at top tech companies and sends you email alerts when new matching jobs are posted. It uses the Greenhouse recruiting platform API to scan 60+ companies every 20 minutes.',
+            text: 'Bamboo is a free web app that automatically monitors job boards at top tech companies and sends you email alerts when new matching jobs are posted. It uses the Greenhouse recruiting platform API to scan 200+ companies every 20 minutes.',
           },
         },
         {
@@ -69,7 +69,7 @@ const jsonLd = {
           name: 'Which companies does Bamboo support?',
           acceptedAnswer: {
             '@type': 'Answer',
-            text: 'Bamboo supports 60+ tech companies that use the Greenhouse recruiting platform, including Anthropic, OpenAI, Stripe, Databricks, Airbnb, Coinbase, Discord, Dropbox, Figma, GitLab, Lyft, MongoDB, Reddit, Robinhood, Sentry, and many more.',
+            text: 'Bamboo supports 200+ tech companies that use the Greenhouse recruiting platform, including Anthropic, OpenAI, Stripe, Databricks, Airbnb, Coinbase, Discord, Dropbox, Figma, GitLab, Lyft, MongoDB, Reddit, Robinhood, Sentry, and many more.',
           },
         },
         {
@@ -113,7 +113,7 @@ const features = [
   {
     icon: Zap,
     title: 'Scans every 20 minutes',
-    description: 'Greenhouse job boards at 60+ top tech companies are checked automatically, around the clock.',
+    description: 'Greenhouse job boards at 200+ top tech companies are checked automatically, around the clock.',
   },
   {
     icon: Mail,
@@ -169,7 +169,7 @@ const steps = [
 const faqs = [
   {
     q: 'Which companies are supported?',
-    a: 'Any company that uses the Greenhouse recruiting platform. Bamboo comes pre-loaded with 60+ top US tech companies including Anthropic, OpenAI, Stripe, Databricks, Airbnb, Coinbase, Discord, Figma, GitLab, Lyft, Reddit, Robinhood, Sentry, and more.',
+    a: 'Any company that uses the Greenhouse recruiting platform. Bamboo comes pre-loaded with 200+ top US tech companies including Anthropic, OpenAI, Stripe, Databricks, Airbnb, Coinbase, Discord, Figma, GitLab, Lyft, Reddit, Robinhood, Sentry, and more.',
   },
   {
     q: 'How often are jobs checked?',
@@ -233,13 +233,13 @@ export default async function LandingPage() {
         <section className="max-w-5xl mx-auto px-6 pt-20 pb-16 text-center">
           <div className="inline-flex items-center gap-2 bg-green-50 text-green-700 text-xs font-medium px-3 py-1.5 rounded-full mb-6">
             <Zap className="w-3 h-3" />
-            Scans 60+ companies every 20 minutes
+            Scans 200+ companies every 20 minutes
           </div>
           <h1 className="text-4xl sm:text-5xl font-bold text-gray-900 leading-tight mb-5">
-            Never miss a job opening<br className="hidden sm:block" /> at top tech companies
+            Find jobs fast.<br className="hidden sm:block" /> Like bamboo grows.
           </h1>
-          <p className="text-lg text-gray-500 max-w-2xl mx-auto mb-8">
-            Bamboo monitors Greenhouse job boards at Anthropic, Stripe, OpenAI, Databricks, and 60+ more — every 20 minutes — and emails you the moment a matching role appears.
+          <p className="text-lg text-gray-500 max-w-xl mx-auto mb-8">
+            Bamboo scans 200+ companies every 20 minutes and emails you the moment a matching role appears.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link
@@ -267,7 +267,7 @@ export default async function LandingPage() {
               {companies.map(c => (
                 <span key={c} className="text-sm font-medium text-gray-500">{c}</span>
               ))}
-              <span className="text-sm text-gray-400">+ 40 more</span>
+              <span className="text-sm text-gray-400">+ 180 more</span>
             </div>
           </div>
         </section>

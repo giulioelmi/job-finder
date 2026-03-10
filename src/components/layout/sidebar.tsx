@@ -36,7 +36,6 @@ export function Sidebar({ userEmail }: SidebarProps) {
           </div>
           <span className="font-bold text-lg text-gray-900 tracking-tight">Bamboo</span>
         </div>
-        <p className="text-xs text-green-700/60 mt-1">Job Alert Dashboard</p>
       </div>
 
       {/* Nav */}
