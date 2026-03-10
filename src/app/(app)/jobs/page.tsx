@@ -60,6 +60,17 @@ export default async function JobsPage({
 
   const appliedJobIds = new Set((existingApps ?? []).map(a => a.job_id))
 
+  // Fetch networking contact companies to highlight matching jobs
+  const { data: contactsData } = await supabase
+    .from('networking_contacts')
+    .select('company')
+    .eq('user_id', user!.id)
+    .not('company', 'is', null)
+
+  const contactCompanies = [...new Set(
+    (contactsData ?? []).map(c => (c.company as string).toLowerCase().trim()).filter(Boolean)
+  )]
+
   // Filter by user's current settings and the selected time window
   const jobs = (jobsData ?? [])
     .filter(job => {
@@ -135,6 +146,7 @@ export default async function JobsPage({
           jobs={jobs}
           userId={user!.id}
           appliedJobIds={appliedJobIds}
+          contactCompanies={contactCompanies}
         />
       )}
     </div>
