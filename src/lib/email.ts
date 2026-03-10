@@ -10,13 +10,20 @@ interface EmailJob {
 
 function formatPostedAt(posted_at: string | null): string {
   if (!posted_at) return 'just now'
-  const d = new Date(posted_at)
-  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })
+  const diffMs = Date.now() - new Date(posted_at).getTime()
+  const diffMins = Math.floor(diffMs / 60000)
+  if (diffMins < 1) return 'just now'
+  if (diffMins < 60) return `${diffMins} min ago`
+  const diffHours = Math.floor(diffMins / 60)
+  if (diffHours < 24) return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`
+  const diffDays = Math.floor(diffHours / 24)
+  return `${diffDays} day${diffDays === 1 ? '' : 's'} ago`
 }
 
 export async function sendJobNotificationEmail(
   to: string,
-  jobs: EmailJob[]
+  jobs: EmailJob[],
+  name?: string
 ): Promise<void> {
   if (jobs.length === 0) return
   if (!process.env.RESEND_API_KEY) {
@@ -25,44 +32,59 @@ export async function sendJobNotificationEmail(
   }
   const resend = new Resend(process.env.RESEND_API_KEY)
 
-  const count = jobs.length
-  const jobLines = jobs
-    .map(job => `• ${job.company} — ${job.title}, posted ${formatPostedAt(job.posted_at)}`)
-    .join('\n')
+  const MAX_JOBS = 5
+  const displayedJobs = jobs.slice(0, MAX_JOBS)
+  const extraCount = jobs.length - displayedJobs.length
 
-  const jobListHtml = jobs
+  const greeting = name ? `Hi ${name},` : 'Hi,'
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://jobbamboo.com'
+
+  // Plain text
+  const jobLines = displayedJobs
+    .map(job => `• ${job.title} - ${job.company} - posted ${formatPostedAt(job.posted_at)}`)
+    .join('\n')
+  const extraLine = extraCount > 0
+    ? `\nAnd ${extraCount} more job${extraCount === 1 ? '' : 's'} on jobbamboo.com`
+    : ''
+
+  // HTML rows
+  const jobListHtml = displayedJobs
     .map(
       job => `<tr>
         <td style="padding:12px 0;border-bottom:1px solid #f3f4f6;">
-          <strong style="color:#111827;">${job.company}</strong>
-          <span style="color:#6b7280;font-size:14px;"> — ${job.title}</span><br/>
-          <span style="color:#9ca3af;font-size:13px;">Posted ${formatPostedAt(job.posted_at)}${job.location ? ` · ${job.location}` : ''}</span><br/>
+          <strong style="color:#111827;">${job.title}</strong>
+          <span style="color:#6b7280;font-size:14px;"> - ${job.company}</span><br/>
+          <span style="color:#9ca3af;font-size:13px;">posted ${formatPostedAt(job.posted_at)}${job.location ? ` · ${job.location}` : ''}</span><br/>
           <a href="${job.url}" style="color:#2563eb;font-size:13px;text-decoration:none;">View job →</a>
         </td>
       </tr>`
     )
     .join('')
 
-  const subject = count === 1
-    ? `1 new job just posted`
-    : `${count} new jobs just posted`
+  const extraHtml = extraCount > 0
+    ? `<p style="font-size:14px;color:#6b7280;margin-top:16px;">
+        And <a href="${appUrl}" style="color:#2563eb;">${extraCount} more job${extraCount === 1 ? '' : 's'}</a> on jobbamboo.com
+      </p>`
+    : ''
 
   const { error } = await resend.emails.send({
-    from: process.env.RESEND_FROM_EMAIL ?? 'JobFinder <noreply@yourdomain.com>',
+    from: process.env.RESEND_FROM_EMAIL ?? 'JobBamboo <noreply@jobbamboo.com>',
     to,
-    subject,
-    text: `Hey,\n\n${count === 1 ? 'A new job has' : `${count} jobs have`} just been posted:\n\n${jobLines}\n\nManage your alerts: ${process.env.NEXT_PUBLIC_APP_URL}/settings`,
+    subject: 'New jobs just posted!',
+    text: `${greeting}\n\nLog into jobbamboo.com to see these new jobs:\n\n${jobLines}${extraLine}\n\nManage your alerts: ${appUrl}/settings`,
     html: `
       <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;">
-        <p style="font-size:16px;color:#111827;margin-bottom:20px;">
-          Hey, ${count === 1 ? 'a new job has' : `${count} jobs have`} just been posted:
+        <p style="font-size:16px;color:#111827;margin-bottom:4px;">${greeting}</p>
+        <p style="font-size:16px;color:#111827;margin-top:0;margin-bottom:20px;">
+          Log into <a href="${appUrl}" style="color:#2563eb;">jobbamboo.com</a> to see these new jobs:
         </p>
         <table style="width:100%;border-collapse:collapse;">
           ${jobListHtml}
         </table>
+        ${extraHtml}
         <p style="color:#9ca3af;font-size:12px;margin-top:24px;">
-          You're receiving this because you set up job alerts on JobFinder.
-          <a href="${process.env.NEXT_PUBLIC_APP_URL}/settings" style="color:#2563eb;">Manage alerts</a>
+          You're receiving this because you set up job alerts on JobBamboo.
+          <a href="${appUrl}/settings" style="color:#2563eb;">Manage alerts</a>
         </p>
       </div>
     `,
