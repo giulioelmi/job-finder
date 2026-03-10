@@ -46,3 +46,17 @@ export interface Application {
 }
 
 export type ApplicationStatus = Application['status']
+
+export interface NetworkingContact {
+  id: string
+  user_id: string
+  name: string
+  company: string | null
+  role: string | null
+  email: string | null
+  linkedin_url: string | null
+  notes: string | null
+  last_contacted_at: string | null
+  next_followup_at: string | null
+  created_at: string
+}

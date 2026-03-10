@@ -10,23 +10,33 @@ import {
   Bell,
   LogOut,
   Briefcase,
+  Users,
   X,
 } from 'lucide-react'
 
-const navItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/jobs', label: 'Recent Jobs', icon: Bell },
-  { href: '/applications', label: 'Applications', icon: Briefcase },
-  { href: '/settings', label: 'Settings', icon: Settings },
-]
+interface NavItem {
+  href: string
+  label: string
+  icon: React.ComponentType<{ className?: string }>
+  badge?: number
+}
 
 interface SidebarProps {
   userEmail?: string
   onClose?: () => void
+  notificationCount?: number
 }
 
-export function Sidebar({ userEmail, onClose }: SidebarProps) {
+export function Sidebar({ userEmail, onClose, notificationCount = 0 }: SidebarProps) {
   const pathname = usePathname()
+
+  const navItems: NavItem[] = [
+    { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { href: '/jobs', label: 'Recent Jobs', icon: Bell },
+    { href: '/applications', label: 'Applications', icon: Briefcase },
+    { href: '/networking', label: 'Networking', icon: Users, badge: notificationCount },
+    { href: '/settings', label: 'Settings', icon: Settings },
+  ]
 
   return (
     <div className="w-64 bg-[#f0f7f3] flex flex-col h-screen border-r border-[#d4e9db]">
@@ -52,22 +62,33 @@ export function Sidebar({ userEmail, onClose }: SidebarProps) {
 
       {/* Nav */}
       <nav className="flex-1 px-4 py-6 space-y-1">
-        {navItems.map(({ href, label, icon: Icon }) => (
-          <Link
-            key={href}
-            href={href}
-            onClick={onClose}
-            className={cn(
-              'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
-              pathname === href
-                ? 'bg-green-700 text-white'
-                : 'text-gray-600 hover:text-gray-900 hover:bg-green-100'
-            )}
-          >
-            <Icon className="w-4 h-4 flex-shrink-0" />
-            {label}
-          </Link>
-        ))}
+        {navItems.map(({ href, label, icon: Icon, badge }) => {
+          const isActive = pathname === href
+          return (
+            <Link
+              key={href}
+              href={href}
+              onClick={onClose}
+              className={cn(
+                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                isActive
+                  ? 'bg-green-700 text-white'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-green-100'
+              )}
+            >
+              <Icon className="w-4 h-4 flex-shrink-0" />
+              <span className="flex-1">{label}</span>
+              {badge != null && badge > 0 && (
+                <span className={cn(
+                  'inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-xs font-bold',
+                  isActive ? 'bg-white text-green-700' : 'bg-orange-500 text-white'
+                )}>
+                  {badge}
+                </span>
+              )}
+            </Link>
+          )
+        })}
       </nav>
 
       {/* User */}

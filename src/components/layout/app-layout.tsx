@@ -1,10 +1,17 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { Sidebar } from './sidebar'
-import { Menu, Leaf } from 'lucide-react'
+import { Menu, Leaf, Bell } from 'lucide-react'
 
-export function AppLayout({ children, userEmail }: { children: React.ReactNode; userEmail?: string }) {
+interface AppLayoutProps {
+  children: React.ReactNode
+  userEmail?: string
+  notificationCount?: number
+}
+
+export function AppLayout({ children, userEmail, notificationCount = 0 }: AppLayoutProps) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -12,7 +19,7 @@ export function AppLayout({ children, userEmail }: { children: React.ReactNode; 
 
       {/* Desktop sidebar — always visible on lg+ */}
       <div className="hidden lg:block flex-shrink-0">
-        <Sidebar userEmail={userEmail} />
+        <Sidebar userEmail={userEmail} notificationCount={notificationCount} />
       </div>
 
       {/* Mobile drawer backdrop */}
@@ -29,7 +36,7 @@ export function AppLayout({ children, userEmail }: { children: React.ReactNode; 
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <Sidebar userEmail={userEmail} onClose={() => setOpen(false)} />
+        <Sidebar userEmail={userEmail} onClose={() => setOpen(false)} notificationCount={notificationCount} />
       </div>
 
       {/* Main content column */}
@@ -43,12 +50,25 @@ export function AppLayout({ children, userEmail }: { children: React.ReactNode; 
           >
             <Menu className="w-5 h-5 text-gray-700" />
           </button>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-1">
             <div className="w-7 h-7 bg-green-700 rounded-lg flex items-center justify-center">
               <Leaf className="w-3.5 h-3.5 text-white" />
             </div>
             <span className="font-bold text-gray-900 tracking-tight">Bamboo</span>
           </div>
+          {/* Notification bell — mobile only */}
+          <Link
+            href="/networking"
+            className="relative p-1.5 rounded-lg hover:bg-green-100 transition-colors"
+            aria-label={notificationCount > 0 ? `${notificationCount} follow-up reminders` : 'Networking'}
+          >
+            <Bell className="w-5 h-5 text-gray-700" />
+            {notificationCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center min-w-[16px] h-4 px-0.5 rounded-full bg-orange-500 text-white text-[10px] font-bold">
+                {notificationCount}
+              </span>
+            )}
+          </Link>
         </header>
 
         <main className="flex-1 overflow-auto">{children}</main>

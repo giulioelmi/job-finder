@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent } from '@/components/ui/card'
-import { MapPin, Building2, Clock, ExternalLink, Eye, Trash2, CheckCircle } from 'lucide-react'
+import { MapPin, Building2, Clock, ExternalLink, Eye, Trash2, CheckCircle, Users } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 
 const ITEMS_PER_PAGE = 10
@@ -22,15 +22,22 @@ interface JobListClientProps {
   jobs: Job[]
   userId: string
   appliedJobIds: Set<string>
+  contactCompanies?: string[]
 }
 
-export function JobListClient({ jobs, userId, appliedJobIds: initialViewed }: JobListClientProps) {
+export function JobListClient({ jobs, userId, appliedJobIds: initialViewed, contactCompanies = [] }: JobListClientProps) {
   const supabase = createClient()
   const [viewed, setViewed] = useState<Set<string>>(initialViewed)
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set())
   const [markedApplied, setMarkedApplied] = useState<Set<string>>(new Set())
   const [visibleCount, setVisibleCount] = useState(ITEMS_PER_PAGE)
   const sentinelRef = useRef<HTMLDivElement>(null)
+
+  function hasNetworkingContact(company: string | null): boolean {
+    if (!company || contactCompanies.length === 0) return false
+    const lower = company.toLowerCase()
+    return contactCompanies.some(c => lower.includes(c) || c.includes(lower))
+  }
 
   const filteredJobs = jobs.filter(j => !dismissedIds.has(j.id))
   const visibleJobs = filteredJobs.slice(0, visibleCount)
@@ -85,6 +92,7 @@ export function JobListClient({ jobs, userId, appliedJobIds: initialViewed }: Jo
         const isViewed = viewed.has(job.id)
         const isApplied = markedApplied.has(job.id)
         const timestamp = job.posted_at ?? job.found_at
+        const isNetworkingContact = hasNetworkingContact(job.company)
 
         return (
           <Card
@@ -94,7 +102,15 @@ export function JobListClient({ jobs, userId, appliedJobIds: initialViewed }: Jo
             <CardContent className="py-4">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-gray-900 text-base truncate">{job.title}</h3>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-semibold text-gray-900 text-base truncate">{job.title}</h3>
+                    {isNetworkingContact && (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 flex-shrink-0">
+                        <Users className="w-3 h-3" />
+                        Contact
+                      </span>
+                    )}
+                  </div>
                   <div className="flex items-center flex-wrap gap-3 mt-1.5 text-sm text-gray-500">
                     {job.company && (
                       <span className="flex items-center gap-1">
