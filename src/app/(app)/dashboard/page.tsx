@@ -50,7 +50,7 @@ export default async function DashboardPage() {
   }
 
   const stats = [
-    { label: 'Total Applications', value: applications.length, icon: Briefcase, color: 'text-blue-600' },
+    { label: 'Total Applications', value: applications.length, icon: Briefcase, color: 'text-green-700' },
     { label: 'Jobs Today', value: notificationsCount, icon: Bell, color: 'text-purple-600' },
     { label: 'Interviews', value: statusCounts.interview, icon: TrendingUp, color: 'text-yellow-600' },
     { label: 'Offers', value: statusCounts.offer, icon: Clock, color: 'text-green-600' },
@@ -91,7 +91,7 @@ export default async function DashboardPage() {
               <p className="text-sm text-gray-500 mt-0.5">Applications submitted this week</p>
             </div>
             <div className="text-right">
-              <p className="text-2xl font-bold text-blue-600">
+              <p className="text-2xl font-bold text-green-700">
                 {appsByDay.reduce((sum, d) => sum + d.count, 0)}
               </p>
               <p className="text-xs text-gray-400">this week</p>
@@ -111,12 +111,12 @@ export default async function DashboardPage() {
                   <div
                     className={`w-full rounded-t-md transition-all ${
                       isToday
-                        ? count > 0 ? 'bg-blue-500' : 'bg-blue-200'
-                        : count > 0 ? 'bg-blue-300' : 'bg-gray-100'
+                        ? count > 0 ? 'bg-green-600' : 'bg-green-200'
+                        : count > 0 ? 'bg-green-400' : 'bg-gray-100'
                     }`}
                     style={{ height: `${height}px` }}
                   />
-                  <span className={`text-xs ${isToday ? 'font-semibold text-blue-600' : 'text-gray-400'}`}>
+                  <span className={`text-xs ${isToday ? 'font-semibold text-green-700' : 'text-gray-400'}`}>
                     {label}
                   </span>
                 </div>
