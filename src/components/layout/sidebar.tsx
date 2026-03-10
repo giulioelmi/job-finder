@@ -27,16 +27,16 @@ export function Sidebar({ userEmail }: SidebarProps) {
   const pathname = usePathname()
 
   return (
-    <div className="w-64 bg-[#0d1a11] text-white flex flex-col h-screen sticky top-0">
+    <div className="w-64 bg-[#f0f7f3] flex flex-col h-screen sticky top-0 border-r border-[#d4e9db]">
       {/* Logo */}
-      <div className="px-6 py-6 border-b border-[#1c2e20]">
+      <div className="px-6 py-6 border-b border-[#d4e9db]">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-green-600 rounded-lg flex items-center justify-center">
+          <div className="w-8 h-8 bg-green-700 rounded-lg flex items-center justify-center">
             <Leaf className="w-4 h-4 text-white" />
           </div>
-          <span className="font-bold text-lg tracking-tight">Bamboo</span>
+          <span className="font-bold text-lg text-gray-900 tracking-tight">Bamboo</span>
         </div>
-        <p className="text-xs text-green-900/60 text-[#4d7a58] mt-1">Job Alert Dashboard</p>
+        <p className="text-xs text-green-700/60 mt-1">Job Alert Dashboard</p>
       </div>
 
       {/* Nav */}
@@ -49,7 +49,7 @@ export function Sidebar({ userEmail }: SidebarProps) {
               'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
               pathname === href
                 ? 'bg-green-700 text-white'
-                : 'text-[#7aab85] hover:text-white hover:bg-[#1c2e20]'
+                : 'text-gray-600 hover:text-gray-900 hover:bg-green-100'
             )}
           >
             <Icon className="w-4 h-4 flex-shrink-0" />
@@ -59,9 +59,9 @@ export function Sidebar({ userEmail }: SidebarProps) {
       </nav>
 
       {/* User */}
-      <div className="px-4 py-4 border-t border-[#1c2e20]">
+      <div className="px-4 py-4 border-t border-[#d4e9db]">
         <div className="px-3 py-2 mb-1">
-          <p className="text-xs text-[#4d7a58] truncate">{userEmail || 'user@example.com'}</p>
+          <p className="text-xs text-gray-500 truncate">{userEmail || 'user@example.com'}</p>
         </div>
         <button
           type="button"
@@ -69,7 +69,7 @@ export function Sidebar({ userEmail }: SidebarProps) {
             await fetch('/auth/signout', { method: 'POST' })
             window.location.href = '/login'
           }}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-[#7aab85] hover:text-white hover:bg-[#1c2e20] transition-colors w-full"
+          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-green-100 transition-colors w-full"
         >
           <LogOut className="w-4 h-4" />
           Sign out

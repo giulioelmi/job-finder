@@ -68,7 +68,7 @@ export function ApplicationsClient({ applications: initial, userId }: Applicatio
           <button
             onClick={() => setFilterStatus('all')}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              filterStatus === 'all' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'
+              filterStatus === 'all' ? 'bg-green-700 text-white' : 'text-gray-600 hover:bg-green-50'
             }`}
           >
             All ({applications.length})
@@ -80,7 +80,7 @@ export function ApplicationsClient({ applications: initial, userId }: Applicatio
                 key={s}
                 onClick={() => setFilterStatus(s)}
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors capitalize ${
-                  filterStatus === s ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'
+                  filterStatus === s ? 'bg-green-700 text-white' : 'text-gray-600 hover:bg-green-50'
                 }`}
               >
                 {s} ({count})
@@ -90,7 +90,7 @@ export function ApplicationsClient({ applications: initial, userId }: Applicatio
         </div>
         <button
           onClick={() => setShowAddModal(true)}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-700 text-white text-sm font-medium rounded-lg hover:bg-green-800 transition-colors"
         >
           <Plus className="w-4 h-4" />
           Add Job
@@ -104,7 +104,7 @@ export function ApplicationsClient({ applications: initial, userId }: Applicatio
             <h3 className="text-lg font-semibold text-gray-700 mb-2">No applications</h3>
             <p className="text-gray-500 text-sm">
               Track applications from the{' '}
-              <a href="/jobs" className="text-blue-600 hover:underline">Recent Jobs</a> page, or add one manually.
+              <a href="/jobs" className="text-green-700 hover:underline">Recent Jobs</a> page, or add one manually.
             </p>
           </CardContent>
         </Card>
@@ -210,7 +210,7 @@ function NotesEditor({ notes, onSave }: { notes: string; onSave: (n: string) => 
         value={value}
         onChange={e => setValue(e.target.value)}
         rows={2}
-        className="w-full px-2 py-1.5 border border-gray-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+        className="w-full px-2 py-1.5 border border-gray-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-green-600 resize-none"
         placeholder="Interview notes, follow-up date..."
         autoFocus
       />
@@ -265,7 +265,7 @@ function AddJobModal({
               onChange={e => setTitle(e.target.value)}
               placeholder="e.g. Product Manager Intern"
               required
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-600 text-sm"
             />
           </div>
           <div>
@@ -275,7 +275,7 @@ function AddJobModal({
               value={company}
               onChange={e => setCompany(e.target.value)}
               placeholder="e.g. Google"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-600 text-sm"
             />
           </div>
           <div>
@@ -285,7 +285,7 @@ function AddJobModal({
               value={location}
               onChange={e => setLocation(e.target.value)}
               placeholder="e.g. Remote"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-600 text-sm"
             />
           </div>
           <div>
@@ -295,7 +295,7 @@ function AddJobModal({
               value={url}
               onChange={e => setUrl(e.target.value)}
               placeholder="https://..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-600 text-sm"
             />
           </div>
           <div>
@@ -303,7 +303,7 @@ function AddJobModal({
             <select
               value={status}
               onChange={e => setStatus(e.target.value as ApplicationStatus)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-600 text-sm bg-white"
             >
               {(['applied', 'interview', 'offer', 'rejected'] as ApplicationStatus[]).map(s => (
                 <option key={s} value={s} className="capitalize">{s}</option>

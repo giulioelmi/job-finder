@@ -120,7 +120,7 @@ export function JobListClient({ jobs, userId, appliedJobIds: initialViewed }: Jo
                     className={`inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                       isViewed
                         ? 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                        : 'bg-blue-600 text-white hover:bg-blue-700'
+                        : 'bg-green-700 text-white hover:bg-green-800'
                     }`}
                   >
                     {isViewed ? (
