@@ -6,7 +6,7 @@ import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Briefcase } from 'lucide-react'
+import { Leaf } from 'lucide-react'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -32,13 +32,13 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="min-h-screen flex items-center justify-center bg-[#f7faf8]">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-12 h-12 bg-blue-600 rounded-xl mb-4">
-            <Briefcase className="w-6 h-6 text-white" />
+          <div className="inline-flex items-center justify-center w-12 h-12 bg-green-700 rounded-xl mb-4">
+            <Leaf className="w-6 h-6 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">JobFinder</h1>
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Bamboo</h1>
           <p className="text-gray-500 mt-1">Sign in to your account</p>
         </div>
 
@@ -51,14 +51,14 @@ export default function LoginPage() {
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-600 text-sm"
                 placeholder="you@example.com"
               />
             </div>
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="block text-sm font-medium text-gray-700">Password</label>
-                <Link href="/forgot-password" className="text-xs text-blue-600 hover:underline">
+                <Link href="/forgot-password" className="text-xs text-green-700 hover:underline">
                   Forgot password?
                 </Link>
               </div>
@@ -67,7 +67,7 @@ export default function LoginPage() {
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-600 text-sm"
                 placeholder="••••••••"
               />
             </div>
@@ -75,7 +75,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              className="w-full py-2.5 bg-green-700 text-white rounded-lg font-medium hover:bg-green-800 disabled:opacity-50 transition-colors"
             >
               {loading ? 'Signing in...' : 'Sign in'}
             </button>
@@ -83,7 +83,7 @@ export default function LoginPage() {
 
           <p className="text-center text-sm text-gray-500 mt-6">
             Don&apos;t have an account?{' '}
-            <Link href="/signup" className="text-blue-600 font-medium hover:underline">
+            <Link href="/signup" className="text-green-700 font-medium hover:underline">
               Sign up
             </Link>
           </p>
