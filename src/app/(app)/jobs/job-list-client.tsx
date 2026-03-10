@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { CardContent } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { MapPin, Building2, Clock, ExternalLink, Eye, Trash2, CheckCircle } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 
@@ -87,9 +87,9 @@ export function JobListClient({ jobs, userId, appliedJobIds: initialViewed }: Jo
         const timestamp = job.posted_at ?? job.found_at
 
         return (
-          <div
+          <Card
             key={job.id}
-            className="rounded-xl border bg-card text-card-foreground shadow-sm hover:shadow-md transition-shadow"
+            className="hover:shadow-md transition-shadow"
           >
             <CardContent className="py-4">
               <div className="flex items-start justify-between gap-4">
@@ -159,7 +159,7 @@ export function JobListClient({ jobs, userId, appliedJobIds: initialViewed }: Jo
                 </div>
               </div>
             </CardContent>
-          </div>
+          </Card>
         )
       })}
       {hasMore && <div ref={sentinelRef} className="h-8" />}
