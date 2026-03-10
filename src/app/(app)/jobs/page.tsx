@@ -102,13 +102,13 @@ export default async function JobsPage({
     })
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
+    <div className="p-4 lg:p-8 max-w-4xl mx-auto">
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Recent Jobs</h1>
           <p className="text-gray-500 mt-1">Jobs matching your preferences from the last {hours < 24 ? `${hours}h` : hours === 24 ? '1 day' : '7 days'}</p>
         </div>
-        <Badge className="bg-blue-100 text-blue-700 text-sm px-3 py-1">
+        <Badge className="bg-green-100 text-green-700 text-sm px-3 py-1">
           {jobs.length} job{jobs.length !== 1 ? 's' : ''}
         </Badge>
       </div>
@@ -126,7 +126,7 @@ export default async function JobsPage({
             <h3 className="text-lg font-semibold text-gray-700 mb-2">No jobs yet</h3>
             <p className="text-gray-500 text-sm max-w-sm mx-auto">
               Jobs are fetched automatically. Make sure you&apos;ve configured your alerts in{' '}
-              <a href="/settings" className="text-blue-600 hover:underline">Settings</a>.
+              <a href="/settings" className="text-green-700 hover:underline">Settings</a>.
             </p>
           </CardContent>
         </Card>

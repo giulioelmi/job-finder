@@ -1,16 +1,16 @@
 import type { Metadata } from "next";
 import "./globals.css";
 
-const siteUrl = process.env.NEXT_PUBLIC_APP_URL || "https://vacansea.com"
+const siteUrl = process.env.NEXT_PUBLIC_APP_URL || "https://bamboojobs.app"
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: "VacanSea — Automated Job Alerts for Tech Roles",
-    template: "%s | VacanSea",
+    default: "Bamboo — Automated Job Alerts for Tech Roles",
+    template: "%s | Bamboo",
   },
   description:
-    "VacanSea scans 60+ top tech companies on Greenhouse every 20 minutes and emails you when matching jobs appear. Free job alert and application tracking tool.",
+    "Bamboo scans 60+ top tech companies on Greenhouse every 20 minutes and emails you when matching jobs appear. Free job alert and application tracking tool.",
   keywords: [
     "job alerts",
     "real-time job notifications",
@@ -25,14 +25,14 @@ export const metadata: Metadata = {
     type: "website",
     locale: "en_US",
     url: siteUrl,
-    siteName: "VacanSea",
-    title: "VacanSea — Automated Job Alerts for Tech Roles",
+    siteName: "Bamboo",
+    title: "Bamboo — Automated Job Alerts for Tech Roles",
     description:
       "Get notified within 20 minutes of a new job posting at your target companies. Monitor 60+ top employers on Greenhouse, filter by role and company, and track every application in one dashboard.",
   },
   twitter: {
     card: "summary_large_image",
-    title: "VacanSea — Automated Job Alerts for Tech Roles",
+    title: "Bamboo — Automated Job Alerts for Tech Roles",
     description:
       "Get notified within 20 minutes of a new job posting at your target companies. Monitor 60+ top employers, filter by keyword, and track applications in one dashboard.",
   },

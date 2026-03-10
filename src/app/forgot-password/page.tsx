@@ -5,7 +5,7 @@ export const dynamic = 'force-dynamic'
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
-import { Briefcase } from 'lucide-react'
+import { Leaf } from 'lucide-react'
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
@@ -33,13 +33,13 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="min-h-screen flex items-center justify-center bg-[#f7faf8]">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-12 h-12 bg-blue-600 rounded-xl mb-4">
-            <Briefcase className="w-6 h-6 text-white" />
+          <div className="inline-flex items-center justify-center w-12 h-12 bg-green-700 rounded-xl mb-4">
+            <Leaf className="w-6 h-6 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">JobFinder</h1>
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Bamboo</h1>
           <p className="text-gray-500 mt-1">Reset your password</p>
         </div>
 
@@ -49,7 +49,7 @@ export default function ForgotPasswordPage() {
               <p className="text-sm text-gray-700">
                 Check your email for a password reset link. It may take a minute to arrive.
               </p>
-              <Link href="/login" className="block text-sm text-blue-600 font-medium hover:underline">
+              <Link href="/login" className="block text-sm text-green-700 font-medium hover:underline">
                 Back to sign in
               </Link>
             </div>
@@ -66,7 +66,7 @@ export default function ForgotPasswordPage() {
                     value={email}
                     onChange={e => setEmail(e.target.value)}
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-600 text-sm"
                     placeholder="you@example.com"
                   />
                 </div>
@@ -74,13 +74,13 @@ export default function ForgotPasswordPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                  className="w-full py-2.5 bg-green-700 text-white rounded-lg font-medium hover:bg-green-800 disabled:opacity-50 transition-colors"
                 >
                   {loading ? 'Sending...' : 'Send reset link'}
                 </button>
               </form>
               <p className="text-center text-sm text-gray-500 mt-6">
-                <Link href="/login" className="text-blue-600 font-medium hover:underline">
+                <Link href="/login" className="text-green-700 font-medium hover:underline">
                   Back to sign in
                 </Link>
               </p>

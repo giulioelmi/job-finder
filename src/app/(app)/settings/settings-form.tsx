@@ -149,18 +149,18 @@ export function SettingsForm({ userId, userEmail, initialSettings }: SettingsFor
             onClick={() => setSearchAllCompanies(true)}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-colors ${
               searchAllCompanies
-                ? 'border-blue-500 bg-blue-50'
+                ? 'border-green-600 bg-green-50'
                 : 'border-gray-200 hover:border-gray-300'
             }`}
           >
             <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
-              searchAllCompanies ? 'border-blue-500' : 'border-gray-400'
+              searchAllCompanies ? 'border-green-600' : 'border-gray-400'
             }`}>
-              {searchAllCompanies && <div className="w-2 h-2 rounded-full bg-blue-500" />}
+              {searchAllCompanies && <div className="w-2 h-2 rounded-full bg-green-600" />}
             </div>
             <Globe className="w-4 h-4 text-gray-500 shrink-0" />
             <div>
-              <p className={`text-sm font-medium ${searchAllCompanies ? 'text-blue-800' : 'text-gray-700'}`}>
+              <p className={`text-sm font-medium ${searchAllCompanies ? 'text-green-800' : 'text-gray-700'}`}>
                 All companies
               </p>
               <p className="text-xs text-gray-400">Search all Greenhouse job boards we track</p>
@@ -173,18 +173,18 @@ export function SettingsForm({ userId, userEmail, initialSettings }: SettingsFor
             onClick={() => setSearchAllCompanies(false)}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-colors ${
               !searchAllCompanies
-                ? 'border-blue-500 bg-blue-50'
+                ? 'border-green-600 bg-green-50'
                 : 'border-gray-200 hover:border-gray-300'
             }`}
           >
             <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
-              !searchAllCompanies ? 'border-blue-500' : 'border-gray-400'
+              !searchAllCompanies ? 'border-green-600' : 'border-gray-400'
             }`}>
-              {!searchAllCompanies && <div className="w-2 h-2 rounded-full bg-blue-500" />}
+              {!searchAllCompanies && <div className="w-2 h-2 rounded-full bg-green-600" />}
             </div>
             <Building2 className="w-4 h-4 text-gray-500 shrink-0" />
             <div>
-              <p className={`text-sm font-medium ${!searchAllCompanies ? 'text-blue-800' : 'text-gray-700'}`}>
+              <p className={`text-sm font-medium ${!searchAllCompanies ? 'text-green-800' : 'text-gray-700'}`}>
                 Specific companies
               </p>
               <p className="text-xs text-gray-400">Choose which company boards to monitor</p>
@@ -230,7 +230,7 @@ export function SettingsForm({ userId, userEmail, initialSettings }: SettingsFor
                       } else if (e.key === 'Escape') setShowCompanyDropdown(false)
                     }}
                     placeholder="e.g. airbnb, stripe, notion..."
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-600 text-sm"
                   />
                 </div>
                 {showCompanyDropdown && (filteredCompanies.length > 0 || showCustomCompany) && (
@@ -286,7 +286,7 @@ export function SettingsForm({ userId, userEmail, initialSettings }: SettingsFor
                   key={jt.id}
                   className={`flex items-center gap-3 px-5 py-3 rounded-lg border cursor-pointer transition-colors ${
                     checked
-                      ? 'border-blue-500 bg-blue-50 text-blue-800'
+                      ? 'border-green-600 bg-green-50 text-green-800'
                       : 'border-gray-200 hover:border-gray-300 text-gray-700'
                   }`}
                 >
@@ -294,7 +294,7 @@ export function SettingsForm({ userId, userEmail, initialSettings }: SettingsFor
                     type="checkbox"
                     checked={checked}
                     onChange={() => toggleJobType(jt.id)}
-                    className="w-4 h-4 text-blue-600 rounded"
+                    className="w-4 h-4 text-green-700 rounded"
                   />
                   <span className="text-sm font-medium">{jt.label}</span>
                 </label>
@@ -319,18 +319,18 @@ export function SettingsForm({ userId, userEmail, initialSettings }: SettingsFor
             onClick={() => setJobTitles([])}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-colors ${
               jobTitles.length === 0
-                ? 'border-blue-500 bg-blue-50'
+                ? 'border-green-600 bg-green-50'
                 : 'border-gray-200 hover:border-gray-300'
             }`}
           >
             <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
-              jobTitles.length === 0 ? 'border-blue-500' : 'border-gray-400'
+              jobTitles.length === 0 ? 'border-green-600' : 'border-gray-400'
             }`}>
-              {jobTitles.length === 0 && <div className="w-2 h-2 rounded-full bg-blue-500" />}
+              {jobTitles.length === 0 && <div className="w-2 h-2 rounded-full bg-green-600" />}
             </div>
             <Layers className="w-4 h-4 text-gray-500 shrink-0" />
             <div>
-              <p className={`text-sm font-medium ${jobTitles.length === 0 ? 'text-blue-800' : 'text-gray-700'}`}>
+              <p className={`text-sm font-medium ${jobTitles.length === 0 ? 'text-green-800' : 'text-gray-700'}`}>
                 All new jobs
               </p>
               <p className="text-xs text-gray-400">Receive every new job, regardless of title</p>
@@ -343,18 +343,18 @@ export function SettingsForm({ userId, userEmail, initialSettings }: SettingsFor
             onClick={() => { if (jobTitles.length === 0) setJobTitles(DEFAULT_JOB_TITLES) }}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg border text-left transition-colors ${
               jobTitles.length > 0
-                ? 'border-blue-500 bg-blue-50'
+                ? 'border-green-600 bg-green-50'
                 : 'border-gray-200 hover:border-gray-300'
             }`}
           >
             <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
-              jobTitles.length > 0 ? 'border-blue-500' : 'border-gray-400'
+              jobTitles.length > 0 ? 'border-green-600' : 'border-gray-400'
             }`}>
-              {jobTitles.length > 0 && <div className="w-2 h-2 rounded-full bg-blue-500" />}
+              {jobTitles.length > 0 && <div className="w-2 h-2 rounded-full bg-green-600" />}
             </div>
             <Search className="w-4 h-4 text-gray-500 shrink-0" />
             <div>
-              <p className={`text-sm font-medium ${jobTitles.length > 0 ? 'text-blue-800' : 'text-gray-700'}`}>
+              <p className={`text-sm font-medium ${jobTitles.length > 0 ? 'text-green-800' : 'text-gray-700'}`}>
                 Specific keywords
               </p>
               <p className="text-xs text-gray-400">Only jobs whose title contains one of your keywords</p>
@@ -368,12 +368,12 @@ export function SettingsForm({ userId, userEmail, initialSettings }: SettingsFor
                 {jobTitles.map(title => (
                   <span
                     key={title}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 border border-blue-200 text-blue-800 text-sm font-medium rounded-full"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 border border-green-200 text-green-800 text-sm font-medium rounded-full"
                   >
                     {title}
                     <button
                       onClick={() => setJobTitles(prev => prev.filter(t => t !== title))}
-                      className="text-blue-400 hover:text-blue-700 transition-colors"
+                      className="text-green-400 hover:text-green-700 transition-colors"
                       aria-label={`Remove ${title}`}
                     >
                       <X className="w-3.5 h-3.5" />
@@ -397,7 +397,7 @@ export function SettingsForm({ userId, userEmail, initialSettings }: SettingsFor
                       } else if (e.key === 'Escape') setShowTitleDropdown(false)
                     }}
                     placeholder="Type a keyword or search suggestions, e.g. engineer, analyst..."
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-600 text-sm"
                   />
                 </div>
                 {showTitleDropdown && titleQuery.trim().length > 0 && (filteredTitles.length > 0 || !jobTitles.includes(titleQuery.trim())) && (
@@ -408,7 +408,7 @@ export function SettingsForm({ userId, userEmail, initialSettings }: SettingsFor
                     {!jobTitles.includes(titleQuery.trim()) && (
                       <button
                         onMouseDown={e => { e.preventDefault(); addTitle(titleQuery.trim()) }}
-                        className="w-full text-left px-4 py-2.5 text-sm text-blue-600 font-medium hover:bg-blue-50 transition-colors"
+                        className="w-full text-left px-4 py-2.5 text-sm text-green-700 font-medium hover:bg-green-50 transition-colors"
                       >
                         Add &ldquo;{titleQuery.trim()}&rdquo;
                       </button>
@@ -419,7 +419,7 @@ export function SettingsForm({ userId, userEmail, initialSettings }: SettingsFor
                           <button
                             key={title}
                             onMouseDown={e => { e.preventDefault(); addTitle(title) }}
-                            className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-800 transition-colors"
+                            className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-green-50 hover:text-green-800 transition-colors"
                           >
                             {title}
                           </button>
@@ -445,7 +445,7 @@ export function SettingsForm({ userId, userEmail, initialSettings }: SettingsFor
               type="checkbox"
               checked={emailNotifications}
               onChange={e => setEmailNotifications(e.target.checked)}
-              className="w-4 h-4 text-blue-600 rounded"
+              className="w-4 h-4 text-green-700 rounded"
             />
             <span className="text-sm text-gray-700">Send email notifications for new jobs</span>
           </label>
@@ -457,7 +457,7 @@ export function SettingsForm({ userId, userEmail, initialSettings }: SettingsFor
                 value={notificationEmail}
                 onChange={e => setNotificationEmail(e.target.value)}
                 placeholder="you@example.com"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-600 text-sm"
               />
               <p className="text-xs text-gray-400 mt-1">
                 Companies are checked every 5 minutes for jobs posted in the last hour. You&apos;ll only be notified of new jobs.
