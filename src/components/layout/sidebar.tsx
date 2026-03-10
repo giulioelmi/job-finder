@@ -10,6 +10,7 @@ import {
   Bell,
   LogOut,
   Briefcase,
+  X,
 } from 'lucide-react'
 
 const navItems = [
@@ -21,21 +22,32 @@ const navItems = [
 
 interface SidebarProps {
   userEmail?: string
+  onClose?: () => void
 }
 
-export function Sidebar({ userEmail }: SidebarProps) {
+export function Sidebar({ userEmail, onClose }: SidebarProps) {
   const pathname = usePathname()
 
   return (
-    <div className="w-64 bg-[#f0f7f3] flex flex-col h-screen sticky top-0 border-r border-[#d4e9db]">
+    <div className="w-64 bg-[#f0f7f3] flex flex-col h-screen border-r border-[#d4e9db]">
       {/* Logo */}
-      <div className="px-6 py-6 border-b border-[#d4e9db]">
+      <div className="px-6 py-6 border-b border-[#d4e9db] flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-green-700 rounded-lg flex items-center justify-center">
             <Leaf className="w-4 h-4 text-white" />
           </div>
           <span className="font-bold text-lg text-gray-900 tracking-tight">Bamboo</span>
         </div>
+        {/* Close button — only shown in mobile drawer */}
+        {onClose && (
+          <button
+            onClick={onClose}
+            className="p-1 rounded-lg text-gray-500 hover:text-gray-900 hover:bg-green-100 transition-colors"
+            aria-label="Close menu"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        )}
       </div>
 
       {/* Nav */}
@@ -44,6 +56,7 @@ export function Sidebar({ userEmail }: SidebarProps) {
           <Link
             key={href}
             href={href}
+            onClick={onClose}
             className={cn(
               'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
               pathname === href
