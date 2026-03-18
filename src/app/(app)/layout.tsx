@@ -17,8 +17,22 @@ export default async function Layout({ children }: { children: React.ReactNode }
     .eq('user_id', user.id)
     .lte('next_followup_at', new Date().toISOString())
 
+  // Detect first-time users: no settings row means they haven't completed onboarding
+  const { data: settings } = await supabase
+    .from('user_settings')
+    .select('id')
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  const isNewUser = !settings
+
   return (
-    <AppLayout userEmail={user.email} notificationCount={notificationCount ?? 0}>
+    <AppLayout
+      userEmail={user.email}
+      notificationCount={notificationCount ?? 0}
+      isNewUser={isNewUser}
+      userId={user.id}
+    >
       {children}
     </AppLayout>
   )
