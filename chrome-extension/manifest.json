@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "Bamboo Job Tracker",
+  "version": "1.0.0",
+  "description": "Track your job applications directly from any company website — powered by Bamboo.",
+
+  "permissions": ["storage", "activeTab"],
+  "host_permissions": ["https://*/*", "http://*/*"],
+
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Bamboo Job Tracker"
+  },
+
+  "background": {
+    "service_worker": "background.js"
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["https://*/*", "http://*/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
