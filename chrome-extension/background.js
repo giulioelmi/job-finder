@@ -1,9 +1,9 @@
 // =============================================================================
 // CONFIGURATION — fill in your values before loading the extension
 // =============================================================================
-const SUPABASE_URL = 'https://YOUR_PROJECT.supabase.co'      // Supabase dashboard → Settings → API → Project URL
-const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY'          // Supabase dashboard → Settings → API → anon/public key
-const APP_URL = 'https://YOUR_APP.vercel.app'                // Your deployed Bamboo app URL (no trailing slash)
+const SUPABASE_URL = 'https://tlbbsffehzmoqyrfotau.supabase.co'
+const SUPABASE_ANON_KEY = 'sb_publishable_N7uqXU5l44f0uRIVNFXjLw_8LyAvlBQ'
+const APP_URL = 'https://YOUR_APP.vercel.app'                // ← Replace this with your actual deployed app URL
 // =============================================================================
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
