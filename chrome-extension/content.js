@@ -3,105 +3,67 @@
 
   const STORAGE_KEY = 'bamboo-extension-state'
   const DISMISS_MS = 6 * 60 * 60 * 1000
-  const APPLY_KEYWORDS = [
-    'apply',
-    'application',
-    'candidate',
-    'jobs',
-    'careers',
-    'greenhouse',
-    'ashby',
-    'lever',
-    'workday',
+  const ATS_HOST_PATTERN = /greenhouse\.io|ashbyhq\.com|lever\.co|myworkdayjobs\.com|icims\.com|jobvite\.com/
+  const GENERIC_TITLE_PATTERN = /^(build your career|careers?( at)?|search jobs|job search|join our team|apply now|opportunities?)(\b|$)/i
+  const TITLE_SELECTOR_CANDIDATES = [
+    'main h1',
+    'article h1',
+    '[data-testid*="job"] h1',
+    '[class*="job"] h1',
+    '[class*="posting"] h1',
+    'h1',
+    'main h2',
+    'article h2',
+  ]
+  const COMPANY_SELECTORS = [
+    '[data-testid*="company"]',
+    '[class*="company"]',
+    '[class*="employer"]',
+    '[data-qa*="company"]',
   ]
 
+  let state = analyzePage()
+  if (!state.shouldInject) return
+
+  const host = document.createElement('div')
+  host.id = '__bamboo_root__'
+  Object.assign(host.style, {
+    position: 'fixed',
+    top: '20px',
+    right: '20px',
+    zIndex: '2147483647',
+  })
+  document.body.appendChild(host)
+
+  const shadow = host.attachShadow({ mode: 'open' })
+
+  let expanded = state.autoOpen && !state.recentlyDismissed
+  let dismissed = state.recentlyDismissed
+  let reevaluateTimer = null
+
   function toTitleCase(slug) {
-    return slug.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+    return (slug || '').replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+  }
+
+  function cleanText(raw) {
+    return (raw || '').replace(/\s+/g, ' ').trim()
   }
 
   function cleanTitle(raw) {
-    return (raw || '')
-      .split(' | ')[0]
-      .split(' - ')[0]
-      .split(' – ')[0]
-      .split(' · ')[0]
-      .replace(/^Jobs? at /i, '')
-      .replace(/\s+/g, ' ')
-      .trim()
-  }
-
-  function extractJobInfo() {
-    const url = window.location.href
-    const hostname = window.location.hostname.replace(/^www\./, '')
-
-    const domainParts = hostname.split('.')
-    let company = domainParts.length >= 2 ? domainParts[domainParts.length - 2] : hostname
-    company = toTitleCase(company)
-
-    if (hostname.includes('greenhouse.io')) {
-      const m = url.match(/greenhouse\.io\/([^/?#]+)/)
-      if (m) company = toTitleCase(m[1])
-    } else if (hostname.includes('ashbyhq.com')) {
-      const m = url.match(/ashbyhq\.com\/([^/?#]+)/)
-      if (m) company = toTitleCase(m[1])
-    } else if (hostname.includes('lever.co')) {
-      const m = url.match(/lever\.co\/([^/?#]+)/)
-      if (m) company = toTitleCase(m[1])
-    } else if (hostname.includes('workday.com')) {
-      const m = hostname.match(/([^.]+)\.myworkdayjobs/)
-      if (m) company = toTitleCase(m[1])
-    }
-
-    const jsonLdScripts = Array.from(document.querySelectorAll('script[type="application/ld+json"]'))
-    for (const script of jsonLdScripts) {
-      try {
-        const parsed = JSON.parse(script.textContent || '{}')
-        const records = Array.isArray(parsed) ? parsed : [parsed]
-        for (const record of records) {
-          if (record?.['@type'] === 'JobPosting') {
-            const title = cleanTitle(record.title)
-            const hiringOrg = record.hiringOrganization?.name?.trim()
-            return {
-              title,
-              company: hiringOrg || company,
-              url,
-            }
-          }
-        }
-      } catch {}
-    }
-
-    const og = document.querySelector('meta[property="og:title"]')?.getAttribute('content') || ''
-    const twitter = document.querySelector('meta[name="twitter:title"]')?.getAttribute('content') || ''
-    const h1 = document.querySelector('h1')?.textContent?.trim() || ''
-    let title = cleanTitle(og || twitter || h1 || document.title || '')
-
-    if (hostname.includes('linkedin.com') && title.includes(' at ')) {
-      const parts = title.split(' at ')
-      title = cleanTitle(parts[0])
-      const rest = parts.slice(1).join(' at ')
-      company = rest.split(' | ')[0].split(' - ')[0].trim() || company
-    }
-
-    return { title, company, url }
-  }
-
-  function hasApplicationSignals() {
-    const urlText = `${window.location.href} ${document.title}`.toLowerCase()
-    const keywordMatch = APPLY_KEYWORDS.some((keyword) => urlText.includes(keyword))
-
-    const form = document.querySelector('form')
-    const fileInput = document.querySelector('input[type="file"]')
-    const submitButton = Array.from(document.querySelectorAll('button, input[type="submit"]')).find((el) => {
-      const text = (el.textContent || el.value || '').toLowerCase()
-      return /apply|submit application|send application|finish application/.test(text)
-    })
-
-    const atsHostMatch = /greenhouse\.io|ashbyhq\.com|lever\.co|myworkdayjobs\.com|icims\.com|jobvite\.com/.test(
-      window.location.hostname
+    return cleanText(
+      (raw || '')
+        .split(' | ')[0]
+        .split(' – ')[0]
+        .split(' · ')[0]
+        .replace(/^Jobs? at /i, '')
+        .replace(/\s+-\s+(Remote|Hybrid|Onsite|On-site)$/i, '')
     )
+  }
 
-    return Boolean(atsHostMatch || (keywordMatch && form) || fileInput || submitButton)
+  function isVisible(el) {
+    if (!el) return false
+    const style = window.getComputedStyle(el)
+    return style.display !== 'none' && style.visibility !== 'hidden' && el.getBoundingClientRect().height > 0
   }
 
   function getSessionState() {
@@ -124,26 +86,6 @@
     } catch {}
   }
 
-  const host = document.createElement('div')
-  host.id = '__bamboo_root__'
-  Object.assign(host.style, {
-    position: 'fixed',
-    top: '20px',
-    right: '20px',
-    zIndex: '2147483647',
-  })
-  document.body.appendChild(host)
-
-  const shadow = host.attachShadow({ mode: 'open' })
-
-  const jobInfo = extractJobInfo()
-  const isLikelyApplicationPage = hasApplicationSignals()
-  const sessionState = getSessionState()
-  const recentlyDismissed = Boolean(sessionState.dismissedAt && Date.now() - sessionState.dismissedAt < DISMISS_MS)
-
-  let expanded = isLikelyApplicationPage && !recentlyDismissed
-  let dismissed = recentlyDismissed
-
   function esc(str) {
     return (str || '')
       .replace(/&/g, '&amp;')
@@ -152,9 +94,237 @@
       .replace(/"/g, '&quot;')
   }
 
+  function parseJsonLdRecords() {
+    const scripts = Array.from(document.querySelectorAll('script[type="application/ld+json"]'))
+    const records = []
+
+    for (const script of scripts) {
+      try {
+        const parsed = JSON.parse(script.textContent || '{}')
+        const stack = Array.isArray(parsed) ? [...parsed] : [parsed]
+        while (stack.length > 0) {
+          const value = stack.shift()
+          if (!value || typeof value !== 'object') continue
+          if (Array.isArray(value)) {
+            stack.push(...value)
+            continue
+          }
+          if (value['@graph']) stack.push(value['@graph'])
+          records.push(value)
+        }
+      } catch {}
+    }
+
+    return records
+  }
+
+  function detectCompanyFromHost(hostname, url) {
+    const normalizedHost = hostname.replace(/^www\./, '')
+    const domainParts = normalizedHost.split('.')
+    let company = domainParts.length >= 2 ? domainParts[domainParts.length - 2] : normalizedHost
+
+    if (normalizedHost.includes('greenhouse.io')) {
+      const match = url.match(/greenhouse\.io\/([^/?#]+)/)
+      if (match) company = match[1]
+    } else if (normalizedHost.includes('ashbyhq.com')) {
+      const match = url.match(/ashbyhq\.com\/([^/?#]+)/)
+      if (match) company = match[1]
+    } else if (normalizedHost.includes('lever.co')) {
+      const match = url.match(/lever\.co\/([^/?#]+)/)
+      if (match) company = match[1]
+    } else if (normalizedHost.includes('workday.com')) {
+      const match = normalizedHost.match(/([^.]+)\.myworkdayjobs/)
+      if (match) company = match[1]
+    }
+
+    return toTitleCase(company)
+  }
+
+  function collectTitleCandidates() {
+    const candidates = []
+    const jsonLd = parseJsonLdRecords()
+
+    for (const record of jsonLd) {
+      const type = Array.isArray(record['@type']) ? record['@type'].join(' ') : record['@type']
+      if (typeof type === 'string' && type.includes('JobPosting') && record.title) {
+        candidates.push({ text: record.title, source: 'jsonld', score: 120 })
+      }
+    }
+
+    TITLE_SELECTOR_CANDIDATES.forEach((selector, index) => {
+      document.querySelectorAll(selector).forEach((el) => {
+        if (!isVisible(el)) return
+        const text = cleanTitle(el.textContent)
+        if (!text) return
+        const withinMain = el.closest('main, article, [role="main"]') ? 12 : 0
+        const headingBonus = el.tagName === 'H1' ? 18 : 10
+        candidates.push({ text, source: selector, score: 95 - index * 3 + withinMain + headingBonus })
+      })
+    })
+
+    const metaTitle = document.querySelector('meta[property="og:title"]')?.getAttribute('content')
+    const twitterTitle = document.querySelector('meta[name="twitter:title"]')?.getAttribute('content')
+    const documentTitle = document.title
+
+    ;[
+      { text: metaTitle, source: 'og:title', score: 72 },
+      { text: twitterTitle, source: 'twitter:title', score: 70 },
+      { text: documentTitle, source: 'document.title', score: 62 },
+    ].forEach((candidate) => {
+      const text = cleanTitle(candidate.text)
+      if (text) candidates.push({ ...candidate, text })
+    })
+
+    return candidates
+  }
+
+  function pickBestTitle() {
+    const seen = new Set()
+    const ranked = collectTitleCandidates()
+      .filter((candidate) => {
+        const text = cleanTitle(candidate.text)
+        if (!text) return false
+        if (GENERIC_TITLE_PATTERN.test(text)) return false
+        if (text.length < 4) return false
+        const key = text.toLowerCase()
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+      .sort((a, b) => b.score - a.score)
+
+    return ranked[0]?.text || ''
+  }
+
+  function pickBestCompany(defaultCompany) {
+    const jsonLd = parseJsonLdRecords()
+    for (const record of jsonLd) {
+      const type = Array.isArray(record['@type']) ? record['@type'].join(' ') : record['@type']
+      if (typeof type === 'string' && type.includes('JobPosting')) {
+        const company = cleanText(record.hiringOrganization?.name)
+        if (company) return company
+      }
+    }
+
+    for (const selector of COMPANY_SELECTORS) {
+      const el = Array.from(document.querySelectorAll(selector)).find((node) => isVisible(node))
+      const text = cleanText(el?.textContent)
+      if (text && text.length <= 80 && !GENERIC_TITLE_PATTERN.test(text)) return text
+    }
+
+    const metaSite = cleanText(document.querySelector('meta[property="og:site_name"]')?.getAttribute('content'))
+    if (metaSite && !/careers|jobs/i.test(metaSite)) return metaSite
+
+    return defaultCompany
+  }
+
+  function detectJobSignals(jobInfo) {
+    const url = window.location.href.toLowerCase()
+    const text = document.body?.innerText?.slice(0, 4000).toLowerCase() || ''
+    const hasJsonLdJob = parseJsonLdRecords().some((record) => {
+      const type = Array.isArray(record['@type']) ? record['@type'].join(' ') : record['@type']
+      return typeof type === 'string' && type.includes('JobPosting')
+    })
+    const applyButtons = getApplyButtons()
+    const hasJobHeading = Boolean(jobInfo.title && jobInfo.title.length >= 6)
+    const jobKeywords = /job description|responsibilities|qualifications|req\.? id|apply now|what you'll do|what you’ll do/.test(text)
+    const urlSignals = /\/jobs?\b|\/careers?\b|\/job\/|\/position\//.test(url)
+    const atsHost = ATS_HOST_PATTERN.test(window.location.hostname)
+
+    return {
+      hasJsonLdJob,
+      hasJobHeading,
+      hasApplyButtons: applyButtons.length > 0,
+      jobKeywords,
+      urlSignals,
+      atsHost,
+    }
+  }
+
+  function getApplyButtons() {
+    return Array.from(document.querySelectorAll('a, button, input[type="submit"], input[type="button"]')).filter((el) => {
+      if (!isVisible(el)) return false
+      const text = cleanText(el.textContent || el.value || '').toLowerCase()
+      if (!text) return false
+      return /^(apply|apply now|apply for job|submit application|continue application|start application)$/.test(text)
+    })
+  }
+
+  function detectApplicationSignals() {
+    const forms = Array.from(document.querySelectorAll('form')).filter((form) => isVisible(form))
+    const inputs = Array.from(document.querySelectorAll('input, textarea, select')).filter((el) => isVisible(el))
+    const meaningfulInputs = inputs.filter((el) => {
+      const type = (el.getAttribute('type') || '').toLowerCase()
+      return !['hidden', 'search', 'submit', 'button', 'reset'].includes(type)
+    })
+    const applicantFields = meaningfulInputs.filter((el) => {
+      const haystack = `${el.name || ''} ${el.id || ''} ${el.placeholder || ''} ${el.getAttribute('aria-label') || ''}`.toLowerCase()
+      return /name|email|phone|resume|cv|cover|linkedin|portfolio|website|work authorization|salary/.test(haystack)
+    })
+    const hasResumeUpload = inputs.some((el) => (el.getAttribute('type') || '').toLowerCase() === 'file')
+    const submitButtons = getApplyButtons().concat(
+      Array.from(document.querySelectorAll('button, input[type="submit"]')).filter((el) => {
+        if (!isVisible(el)) return false
+        const text = cleanText(el.textContent || el.value || '').toLowerCase()
+        return /submit application|finish application|review application|send application/.test(text)
+      })
+    )
+    const formText = forms.map((form) => cleanText(form.innerText).toLowerCase()).join(' ')
+    const currentStepText = cleanText(document.body?.innerText?.slice(0, 2500)).toLowerCase()
+    const url = window.location.href.toLowerCase()
+    const atsHost = ATS_HOST_PATTERN.test(window.location.hostname)
+
+    const isActualApplicationForm =
+      hasResumeUpload ||
+      applicantFields.length >= 2 ||
+      (forms.length > 0 && meaningfulInputs.length >= 4 && /resume|cover letter|phone|email/.test(formText)) ||
+      /\/apply\b|\/application\b|\/candidate\b/.test(url) ||
+      /submit application|review your application|contact information|work experience|education/.test(currentStepText)
+
+    return {
+      forms: forms.length,
+      meaningfulInputs: meaningfulInputs.length,
+      applicantFields: applicantFields.length,
+      hasResumeUpload,
+      submitButtons: submitButtons.length,
+      atsHost,
+      isActualApplicationForm,
+    }
+  }
+
+  function analyzePage() {
+    const url = window.location.href
+    const hostname = window.location.hostname
+    const defaultCompany = detectCompanyFromHost(hostname, url)
+    const title = pickBestTitle()
+    const company = pickBestCompany(defaultCompany)
+    const jobInfo = { title, company, url }
+    const sessionState = getSessionState()
+    const recentlyDismissed = Boolean(sessionState.dismissedAt && Date.now() - sessionState.dismissedAt < DISMISS_MS)
+    const jobSignals = detectJobSignals(jobInfo)
+    const applicationSignals = detectApplicationSignals()
+
+    const shouldInject =
+      applicationSignals.isActualApplicationForm ||
+      jobSignals.hasJsonLdJob ||
+      (jobSignals.hasJobHeading && jobSignals.hasApplyButtons) ||
+      (jobSignals.atsHost && (jobSignals.hasJobHeading || jobSignals.hasApplyButtons || applicationSignals.meaningfulInputs > 0)) ||
+      (jobSignals.urlSignals && jobSignals.hasJobHeading)
+
+    const autoOpen = applicationSignals.isActualApplicationForm && Boolean(title)
+
+    return {
+      shouldInject,
+      autoOpen,
+      recentlyDismissed,
+      isLikelyApplicationPage: autoOpen,
+      jobInfo,
+    }
+  }
+
   function getSummaryLabel() {
-    if (jobInfo.title && jobInfo.company) return `${jobInfo.title} - ${jobInfo.company}`
-    return jobInfo.title || jobInfo.company || 'Track this application'
+    if (state.jobInfo.title && state.jobInfo.company) return `${state.jobInfo.title} - ${state.jobInfo.company}`
+    return state.jobInfo.title || state.jobInfo.company || 'Track this application'
   }
 
   function renderCollapsed() {
@@ -205,12 +375,12 @@
         </div>
 
         <div style="margin-bottom:10px;padding:10px 12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;color:#166534;line-height:1.45;">
-          ${isLikelyApplicationPage ? 'Application page detected. Mark it applied when you finish.' : 'Confirm the job details, then save it to Bamboo.'}
+          ${state.isLikelyApplicationPage ? 'Application form detected. Mark it applied after you submit.' : 'Job detected. Open this after you apply to save it to Bamboo.'}
         </div>
 
         <div style="margin-bottom:10px;">
           <label style="display:block;font-size:11px;font-weight:600;color:#6b7280;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.06em;">Job Title</label>
-          <input id="title-input" value="${esc(jobInfo.title)}" placeholder="e.g. Software Engineer" style="
+          <input id="title-input" value="${esc(state.jobInfo.title)}" placeholder="e.g. Software Engineer" style="
             width:100%;box-sizing:border-box;border:1.5px solid #d1d5db;border-radius:8px;
             padding:7px 10px;font-size:13px;color:#111827;outline:none;
             font-family:inherit;transition:border-color 0.15s;
@@ -219,7 +389,7 @@
 
         <div style="margin-bottom:16px;">
           <label style="display:block;font-size:11px;font-weight:600;color:#6b7280;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.06em;">Company</label>
-          <input id="company-input" value="${esc(jobInfo.company)}" placeholder="e.g. Stripe" style="
+          <input id="company-input" value="${esc(state.jobInfo.company)}" placeholder="e.g. Stripe" style="
             width:100%;box-sizing:border-box;border:1.5px solid #d1d5db;border-radius:8px;
             padding:7px 10px;font-size:13px;color:#111827;outline:none;
             font-family:inherit;transition:border-color 0.15s;
@@ -262,6 +432,14 @@
   }
 
   function render() {
+    if (!state.shouldInject) {
+      host.style.display = 'none'
+      shadow.innerHTML = ''
+      return
+    }
+
+    host.style.display = 'block'
+
     if (dismissed) {
       shadow.innerHTML = ''
       return
@@ -339,6 +517,47 @@
       el.style.color = '#15803d'
     }
   }
+
+  function reevaluatePage() {
+    const nextState = analyzePage()
+    const wasVisible = state.shouldInject && !dismissed
+    const shouldAutoOpen = nextState.autoOpen && !nextState.recentlyDismissed && !dismissed
+
+    state = nextState
+
+    if (!state.shouldInject) {
+      expanded = false
+      render()
+      return
+    }
+
+    if (!wasVisible && shouldAutoOpen) {
+      expanded = true
+    } else if (shouldAutoOpen && !expanded) {
+      expanded = true
+    }
+
+    render()
+  }
+
+  function scheduleReevaluation(delay = 250) {
+    window.clearTimeout(reevaluateTimer)
+    reevaluateTimer = window.setTimeout(reevaluatePage, delay)
+  }
+
+  document.addEventListener('click', (event) => {
+    const target = event.target instanceof Element ? event.target.closest('a, button, input[type="submit"], input[type="button"]') : null
+    if (!target) return
+    const text = cleanText(target.textContent || target.value || '').toLowerCase()
+    if (/apply|continue application|start application/.test(text)) {
+      scheduleReevaluation(600)
+    }
+  }, true)
+
+  const observer = new MutationObserver(() => {
+    scheduleReevaluation(300)
+  })
+  observer.observe(document.documentElement, { childList: true, subtree: true })
 
   render()
 })()

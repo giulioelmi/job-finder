@@ -6,9 +6,10 @@ This folder contains the Chrome extension MVP for tracking job applications from
 
 1. The user installs the extension in Chrome.
 2. The user signs in from the extension popup with their Bamboo account credentials.
-3. When the user is on a likely application page, the extension opens a floating tracker in the top-right corner of the page.
-4. The tracker pre-fills the job title, company, and current URL.
-5. Clicking **Applied** sends the application to `POST /api/applications/manual`, which creates a job row and an application row in Bamboo.
+3. The extension only injects on pages that look like job listings or application flows.
+4. It auto-opens the tracker only when it detects an actual application form; otherwise it stays minimized as the floating 🎋 button.
+5. The tracker pre-fills the best detected job title, company, and current URL.
+6. Clicking **Applied** sends the application to `POST /api/applications/manual`, which creates a job row and an application row in Bamboo.
 
 ## Load locally in Chrome
 
@@ -24,9 +25,10 @@ This folder contains the Chrome extension MVP for tracking job applications from
 2. If you are testing locally, update `APP_URL` in `background.js` to your local app URL.
 3. Open the extension popup and sign in with a Bamboo account.
 4. Visit a job application page such as Greenhouse, Ashby, Lever, or Workday.
-5. Confirm that the top-right tracker appears with the detected `Job Title - Company` summary.
-6. Submit or finish the application, then click **Applied** in the tracker.
-7. Confirm the new application appears on `/applications` in Bamboo.
+5. Confirm that job detail pages show only the minimized 🎋 button unless a real application form is present.
+6. Confirm that the full tracker opens once the application form step appears, with the detected `Job Title - Company` summary.
+7. Submit or finish the application, then click **Applied** in the tracker.
+8. Confirm the new application appears on `/applications` in Bamboo.
 
 ## Preparing for the Chrome Web Store
 
@@ -54,6 +56,6 @@ Before publishing, make sure you:
 
 ## Known MVP limitations
 
-- Detection of an "application page" is heuristic-based, so a few company sites may require opening the tracker manually from the floating button.
+- Detection is still heuristic-based, so a few custom career sites may require opening the tracker manually from the floating button.
 - Duplicate clicks create duplicate manual application entries today.
 - The extension saves only the job title, company, URL, and `applied` status for the initial MVP.
