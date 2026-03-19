@@ -2,6 +2,37 @@
   // Don't inject twice
   if (document.getElementById('__bamboo_root__')) return
 
+  // ─── Career page detection ─────────────────────────────────────────────────
+
+  function isJobPage() {
+    const url = window.location.href.toLowerCase()
+    const hostname = window.location.hostname.toLowerCase()
+
+    // Known ATS domains → always show
+    const atsDomains = [
+      'greenhouse.io', 'ashbyhq.com', 'lever.co', 'workday.com',
+      'smartrecruiters.com', 'jobvite.com', 'icims.com', 'taleo.net',
+      'successfactors.com', 'breezy.hr', 'recruitee.com', 'workable.com',
+      'bamboohr.com', 'rippling.com',
+    ]
+    if (atsDomains.some((d) => hostname.includes(d))) return true
+
+    // Career-related URL path patterns
+    const careerPatterns = [
+      '/career', '/careers', '/job/', '/jobs/', '/apply', '/opening',
+      '/position', '/vacancy', '/recruit', '/hiring', '/work-with-us',
+      '/join-us', '/join-our-team', '/opportunities',
+    ]
+    if (careerPatterns.some((p) => url.includes(p))) return true
+
+    // LinkedIn job pages
+    if (hostname.includes('linkedin.com') && url.includes('/jobs/')) return true
+
+    return false
+  }
+
+  if (!isJobPage()) return
+
   // ─── Job info extraction ───────────────────────────────────────────────────
 
   function extractJobInfo() {
@@ -30,17 +61,29 @@
       if (m) company = toTitleCase(m[1])
     }
 
-    // Title: og:title > h1 > document.title
+    // Title extraction — h1 is almost always the job title on detail pages.
+    // og:title is often a generic marketing phrase (e.g. "Build your Career at Tesla").
+    // Exception: LinkedIn encodes job+company in og:title, so we prefer it there.
     const og = document.querySelector('meta[property="og:title"]')?.getAttribute('content') || ''
-    const h1 = document.querySelector('h1')?.textContent?.trim() || ''
-    let title = og || h1 || document.title || ''
+    // Try ATS-specific / semantic selectors before generic h1
+    const jobTitleEl =
+      document.querySelector('[data-job-title], .job-title, [itemprop="title"]') ||
+      document.querySelector('h1')
+    const h1 = jobTitleEl?.textContent?.trim() || ''
 
-    // LinkedIn: "Software Engineer at Stripe | LinkedIn" → title="Software Engineer", company="Stripe"
-    if (hostname.includes('linkedin.com') && title.includes(' at ')) {
-      const parts = title.split(' at ')
-      title = parts[0].trim()
-      const rest = parts.slice(1).join(' at ')
-      company = rest.split(' | ')[0].split(' - ')[0].trim() || company
+    let title
+    if (hostname.includes('linkedin.com')) {
+      title = og || h1 || document.title || ''
+      // LinkedIn: "Software Engineer at Stripe | LinkedIn" → title="Software Engineer", company="Stripe"
+      if (title.includes(' at ')) {
+        const parts = title.split(' at ')
+        title = parts[0].trim()
+        const rest = parts.slice(1).join(' at ')
+        company = rest.split(' | ')[0].split(' - ')[0].trim() || company
+      }
+    } else {
+      // For all other job sites: h1 wins when present and non-trivial
+      title = (h1.length > 4 ? h1 : og) || og || h1 || document.title || ''
     }
 
     // Strip common suffixes
@@ -94,9 +137,13 @@
           width:40px;height:40px;border-radius:50%;
           background:#15803d;border:none;cursor:pointer;
           box-shadow:0 2px 10px rgba(0,0,0,0.2);
-          font-size:20px;line-height:1;
           transition:transform 0.15s,box-shadow 0.15s;
-        " title="Track this job with Bamboo">🎋</button>
+        " title="Track this job with Bamboo">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z"/>
+            <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>
+          </svg>
+        </button>
       `
       const btn = shadow.getElementById('toggle')
       btn.onmouseenter = () => Object.assign(btn.style, { transform: 'scale(1.1)', boxShadow: '0 4px 14px rgba(0,0,0,0.25)' })
@@ -116,9 +163,14 @@
         ">
           <!-- Header -->
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
-            <div style="display:flex;align-items:center;gap:7px;">
-              <span style="font-size:20px;line-height:1;">🎋</span>
-              <span style="font-weight:700;font-size:14px;color:#111827;letter-spacing:-0.01em;">Bamboo Tracker</span>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div style="width:26px;height:26px;background:#15803d;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z"/>
+                  <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>
+                </svg>
+              </div>
+              <span style="font-weight:700;font-size:14px;color:#111827;letter-spacing:-0.01em;">Bamboo</span>
             </div>
             <button id="close" style="
               background:none;border:none;cursor:pointer;
