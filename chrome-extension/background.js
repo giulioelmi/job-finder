@@ -46,7 +46,7 @@ async function handleLogin(email, password) {
       return { success: true, email: data.user?.email }
     }
     return { success: false, error: data.error_description || data.msg || 'Login failed' }
-  } catch (e) {
+  } catch {
     return { success: false, error: 'Network error — check your connection' }
   }
 }
@@ -83,7 +83,7 @@ async function refreshToken(refreshToken) {
       })
       return { token: data.access_token, email: data.user?.email }
     }
-  } catch (_) {}
+  } catch {}
 
   // Refresh failed — clear session so user is prompted to log in again
   await chrome.storage.local.remove(['access_token', 'refresh_token', 'user_email', 'token_expires_at'])
@@ -108,7 +108,7 @@ async function trackApplication({ title, company, url }) {
 
     const err = await res.json().catch(() => ({}))
     return { success: false, error: err.error || `Server error (${res.status})` }
-  } catch (e) {
+  } catch {
     return { success: false, error: 'Network error — check your connection' }
   }
 }
