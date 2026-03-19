@@ -61,32 +61,66 @@
       if (m) company = toTitleCase(m[1])
     }
 
-    // Title extraction — h1 is almost always the job title on detail pages.
-    // og:title is often a generic marketing phrase (e.g. "Build your Career at Tesla").
-    // Exception: LinkedIn encodes job+company in og:title, so we prefer it there.
     const og = document.querySelector('meta[property="og:title"]')?.getAttribute('content') || ''
-    // Try ATS-specific / semantic selectors before generic h1
-    const jobTitleEl =
-      document.querySelector('[data-job-title], .job-title, [itemprop="title"]') ||
-      document.querySelector('h1')
-    const h1 = jobTitleEl?.textContent?.trim() || ''
+
+    // ── Find best h1: skip navigation/header/aside elements ───────────────────
+    function findMainH1() {
+      // Semantic job-title selectors first
+      const semantic = document.querySelector('[data-job-title], .job-title, [itemprop="title"]')
+      if (semantic) return semantic.textContent.trim()
+
+      // Walk all h1s and skip ones living inside nav/header/aside
+      const mainH1 = Array.from(document.querySelectorAll('h1')).find((el) => {
+        if (el.closest('header, nav, aside, [role="navigation"], [role="banner"]')) return false
+        const text = el.textContent.trim()
+        // Skip trivially short or suspiciously long (concatenated nav) text
+        return text.length > 4 && text.length < 200
+      })
+      if (mainH1) return mainH1.textContent.trim()
+
+      // Try the first heading inside <main>
+      const mainEl = document.querySelector('main, [role="main"]')
+      if (mainEl) {
+        const h = mainEl.querySelector('h1, h2')
+        if (h) return h.textContent.trim()
+      }
+
+      return document.querySelector('h1')?.textContent.trim() || ''
+    }
 
     let title
     if (hostname.includes('linkedin.com')) {
-      title = og || h1 || document.title || ''
-      // LinkedIn: "Software Engineer at Stripe | LinkedIn" → title="Software Engineer", company="Stripe"
-      if (title.includes(' at ')) {
-        const parts = title.split(' at ')
+      const raw = og || document.title || ''
+
+      if (raw.includes(' hiring ')) {
+        // New LinkedIn format: "Company hiring Job Title in Location | LinkedIn"
+        const hiringParts = raw.split(' hiring ')
+        company = hiringParts[0].trim()
+        title = hiringParts.slice(1).join(' hiring ').split(' in ')[0].split(' | ')[0].trim()
+      } else if (raw.includes(' at ')) {
+        // Old LinkedIn format: "Job Title at Company | LinkedIn"
+        const parts = raw.split(' at ')
         title = parts[0].trim()
         const rest = parts.slice(1).join(' at ')
         company = rest.split(' | ')[0].split(' - ')[0].trim() || company
+      } else {
+        // Fallback: title from raw, company from DOM
+        title = raw.split(' | ')[0].split(' - ')[0].trim()
+        const companyEl = document.querySelector([
+          '.job-details-jobs-unified-top-card__company-name',
+          '.jobs-unified-top-card__company-name',
+          '.topcard__org-name-link',
+          '[data-tracking-control-name="public_jobs_topcard_org_name"]',
+        ].join(', '))
+        if (companyEl) company = companyEl.textContent.trim()
       }
     } else {
-      // For all other job sites: h1 wins when present and non-trivial
+      // All other job sites: content h1 beats generic og:title
+      const h1 = findMainH1()
       title = (h1.length > 4 ? h1 : og) || og || h1 || document.title || ''
     }
 
-    // Strip common suffixes
+    // Strip common title suffixes
     title = title
       .split(' | ')[0]
       .split(' - ')[0]
