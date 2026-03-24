@@ -1,29 +1,137 @@
 ;(function () {
   if (document.getElementById('__bamboo_root__')) return
 
-  const STORAGE_KEY = 'bamboo-extension-state'
-  const DISMISS_MS = 6 * 60 * 60 * 1000
-  const ATS_HOST_PATTERN = /greenhouse\.io|ashbyhq\.com|lever\.co|myworkdayjobs\.com|icims\.com|jobvite\.com/
-  const GENERIC_TITLE_PATTERN = /^(build your career|careers?( at)?|search jobs|job search|join our team|apply now|opportunities?)(\b|$)/i
-  const TITLE_SELECTOR_CANDIDATES = [
-    'main h1',
-    'article h1',
-    '[data-testid*="job"] h1',
-    '[class*="job"] h1',
-    '[class*="posting"] h1',
-    'h1',
-    'main h2',
-    'article h2',
-  ]
-  const COMPANY_SELECTORS = [
-    '[data-testid*="company"]',
-    '[class*="company"]',
-    '[class*="employer"]',
-    '[data-qa*="company"]',
-  ]
+  // ─── Career page detection ─────────────────────────────────────────────────
 
-  let state = analyzePage()
-  if (!state.shouldInject) return
+  function isJobPage() {
+    const url = window.location.href.toLowerCase()
+    const hostname = window.location.hostname.toLowerCase()
+
+    // Known ATS domains → always show
+    const atsDomains = [
+      'greenhouse.io', 'ashbyhq.com', 'lever.co', 'workday.com',
+      'smartrecruiters.com', 'jobvite.com', 'icims.com', 'taleo.net',
+      'successfactors.com', 'breezy.hr', 'recruitee.com', 'workable.com',
+      'bamboohr.com', 'rippling.com',
+    ]
+    if (atsDomains.some((d) => hostname.includes(d))) return true
+
+    // Career-related URL path patterns
+    const careerPatterns = [
+      '/career', '/careers', '/job/', '/jobs/', '/apply', '/opening',
+      '/position', '/vacancy', '/recruit', '/hiring', '/work-with-us',
+      '/join-us', '/join-our-team', '/opportunities',
+    ]
+    if (careerPatterns.some((p) => url.includes(p))) return true
+
+    // LinkedIn job pages
+    if (hostname.includes('linkedin.com') && url.includes('/jobs/')) return true
+
+    return false
+  }
+
+  if (!isJobPage()) return
+
+  // ─── Job info extraction ───────────────────────────────────────────────────
+
+  function extractJobInfo() {
+    const url = window.location.href
+    const hostname = window.location.hostname.replace(/^www\./, '')
+
+    // Company: start from the domain, then refine for known ATSs
+    const domainParts = hostname.split('.')
+    let company = domainParts.length >= 2 ? domainParts[domainParts.length - 2] : hostname
+    company = company.charAt(0).toUpperCase() + company.slice(1)
+
+    const toTitleCase = (slug) =>
+      slug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+
+    if (hostname.includes('greenhouse.io')) {
+      const m = url.match(/greenhouse\.io\/([^/?#]+)/)
+      if (m) company = toTitleCase(m[1])
+    } else if (hostname.includes('ashbyhq.com')) {
+      const m = url.match(/ashbyhq\.com\/([^/?#]+)/)
+      if (m) company = toTitleCase(m[1])
+    } else if (hostname.includes('lever.co')) {
+      const m = url.match(/lever\.co\/([^/?#]+)/)
+      if (m) company = toTitleCase(m[1])
+    } else if (hostname.includes('workday.com')) {
+      const m = hostname.match(/([^.]+)\.myworkdayjobs/)
+      if (m) company = toTitleCase(m[1])
+    }
+
+    const og = document.querySelector('meta[property="og:title"]')?.getAttribute('content') || ''
+
+    // ── Find best h1: skip navigation/header/aside elements ───────────────────
+    function findMainH1() {
+      // Semantic job-title selectors first
+      const semantic = document.querySelector('[data-job-title], .job-title, [itemprop="title"]')
+      if (semantic) return semantic.textContent.trim()
+
+      // Walk all h1s and skip ones living inside nav/header/aside
+      const mainH1 = Array.from(document.querySelectorAll('h1')).find((el) => {
+        if (el.closest('header, nav, aside, [role="navigation"], [role="banner"]')) return false
+        const text = el.textContent.trim()
+        // Skip trivially short or suspiciously long (concatenated nav) text
+        return text.length > 4 && text.length < 200
+      })
+      if (mainH1) return mainH1.textContent.trim()
+
+      // Try the first heading inside <main>
+      const mainEl = document.querySelector('main, [role="main"]')
+      if (mainEl) {
+        const h = mainEl.querySelector('h1, h2')
+        if (h) return h.textContent.trim()
+      }
+
+      return document.querySelector('h1')?.textContent.trim() || ''
+    }
+
+    let title
+    if (hostname.includes('linkedin.com')) {
+      const raw = og || document.title || ''
+
+      if (raw.includes(' hiring ')) {
+        // New LinkedIn format: "Company hiring Job Title in Location | LinkedIn"
+        const hiringParts = raw.split(' hiring ')
+        company = hiringParts[0].trim()
+        title = hiringParts.slice(1).join(' hiring ').split(' in ')[0].split(' | ')[0].trim()
+      } else if (raw.includes(' at ')) {
+        // Old LinkedIn format: "Job Title at Company | LinkedIn"
+        const parts = raw.split(' at ')
+        title = parts[0].trim()
+        const rest = parts.slice(1).join(' at ')
+        company = rest.split(' | ')[0].split(' - ')[0].trim() || company
+      } else {
+        // Fallback: title from raw, company from DOM
+        title = raw.split(' | ')[0].split(' - ')[0].trim()
+        const companyEl = document.querySelector([
+          '.job-details-jobs-unified-top-card__company-name',
+          '.jobs-unified-top-card__company-name',
+          '.topcard__org-name-link',
+          '[data-tracking-control-name="public_jobs_topcard_org_name"]',
+        ].join(', '))
+        if (companyEl) company = companyEl.textContent.trim()
+      }
+    } else {
+      // All other job sites: content h1 beats generic og:title
+      const h1 = findMainH1()
+      title = (h1.length > 4 ? h1 : og) || og || h1 || document.title || ''
+    }
+
+    // Strip common title suffixes
+    title = title
+      .split(' | ')[0]
+      .split(' - ')[0]
+      .split(' – ')[0]
+      .split(' · ')[0]
+      .replace(/^Jobs? at /i, '')
+      .trim()
+
+    return { title, company, url }
+  }
+
+  // ─── Shadow DOM host ───────────────────────────────────────────────────────
 
   const host = document.createElement('div')
   host.id = '__bamboo_root__'
@@ -115,254 +223,47 @@
       } catch {}
     }
 
-    return records
-  }
-
-  function detectCompanyFromHost(hostname, url) {
-    const normalizedHost = hostname.replace(/^www\./, '')
-    const domainParts = normalizedHost.split('.')
-    let company = domainParts.length >= 2 ? domainParts[domainParts.length - 2] : normalizedHost
-
-    if (normalizedHost.includes('greenhouse.io')) {
-      const match = url.match(/greenhouse\.io\/([^/?#]+)/)
-      if (match) company = match[1]
-    } else if (normalizedHost.includes('ashbyhq.com')) {
-      const match = url.match(/ashbyhq\.com\/([^/?#]+)/)
-      if (match) company = match[1]
-    } else if (normalizedHost.includes('lever.co')) {
-      const match = url.match(/lever\.co\/([^/?#]+)/)
-      if (match) company = match[1]
-    } else if (normalizedHost.includes('workday.com')) {
-      const match = normalizedHost.match(/([^.]+)\.myworkdayjobs/)
-      if (match) company = match[1]
-    }
-
-    return toTitleCase(company)
-  }
-
-  function collectTitleCandidates() {
-    const candidates = []
-    const jsonLd = parseJsonLdRecords()
-
-    for (const record of jsonLd) {
-      const type = Array.isArray(record['@type']) ? record['@type'].join(' ') : record['@type']
-      if (typeof type === 'string' && type.includes('JobPosting') && record.title) {
-        candidates.push({ text: record.title, source: 'jsonld', score: 120 })
+    if (!expanded) {
+      shadow.innerHTML = `
+        <button id="toggle" style="
+          display:flex;align-items:center;justify-content:center;
+          width:40px;height:40px;border-radius:50%;
+          background:#15803d;border:none;cursor:pointer;
+          box-shadow:0 2px 10px rgba(0,0,0,0.2);
+          transition:transform 0.15s,box-shadow 0.15s;
+        " title="Track this job with Bamboo">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z"/>
+            <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>
+          </svg>
+        </button>
+      `
+      const btn = shadow.getElementById('toggle')
+      btn.onmouseenter = () => Object.assign(btn.style, { transform: 'scale(1.1)', boxShadow: '0 4px 14px rgba(0,0,0,0.25)' })
+      btn.onmouseleave = () => Object.assign(btn.style, { transform: 'scale(1)', boxShadow: '0 2px 10px rgba(0,0,0,0.2)' })
+      btn.onclick = () => {
+        jobInfo = extractJobInfo()
+        expanded = true
+        render()
       }
-    }
-
-    TITLE_SELECTOR_CANDIDATES.forEach((selector, index) => {
-      document.querySelectorAll(selector).forEach((el) => {
-        if (!isVisible(el)) return
-        const text = cleanTitle(el.textContent)
-        if (!text) return
-        const withinMain = el.closest('main, article, [role="main"]') ? 12 : 0
-        const headingBonus = el.tagName === 'H1' ? 18 : 10
-        candidates.push({ text, source: selector, score: 95 - index * 3 + withinMain + headingBonus })
-      })
-    })
-
-    const metaTitle = document.querySelector('meta[property="og:title"]')?.getAttribute('content')
-    const twitterTitle = document.querySelector('meta[name="twitter:title"]')?.getAttribute('content')
-    const documentTitle = document.title
-
-    ;[
-      { text: metaTitle, source: 'og:title', score: 72 },
-      { text: twitterTitle, source: 'twitter:title', score: 70 },
-      { text: documentTitle, source: 'document.title', score: 62 },
-    ].forEach((candidate) => {
-      const text = cleanTitle(candidate.text)
-      if (text) candidates.push({ ...candidate, text })
-    })
-
-    return candidates
-  }
-
-  function pickBestTitle() {
-    const seen = new Set()
-    const ranked = collectTitleCandidates()
-      .filter((candidate) => {
-        const text = cleanTitle(candidate.text)
-        if (!text) return false
-        if (GENERIC_TITLE_PATTERN.test(text)) return false
-        if (text.length < 4) return false
-        const key = text.toLowerCase()
-        if (seen.has(key)) return false
-        seen.add(key)
-        return true
-      })
-      .sort((a, b) => b.score - a.score)
-
-    return ranked[0]?.text || ''
-  }
-
-  function pickBestCompany(defaultCompany) {
-    const jsonLd = parseJsonLdRecords()
-    for (const record of jsonLd) {
-      const type = Array.isArray(record['@type']) ? record['@type'].join(' ') : record['@type']
-      if (typeof type === 'string' && type.includes('JobPosting')) {
-        const company = cleanText(record.hiringOrganization?.name)
-        if (company) return company
-      }
-    }
-
-    for (const selector of COMPANY_SELECTORS) {
-      const el = Array.from(document.querySelectorAll(selector)).find((node) => isVisible(node))
-      const text = cleanText(el?.textContent)
-      if (text && text.length <= 80 && !GENERIC_TITLE_PATTERN.test(text)) return text
-    }
-
-    const metaSite = cleanText(document.querySelector('meta[property="og:site_name"]')?.getAttribute('content'))
-    if (metaSite && !/careers|jobs/i.test(metaSite)) return metaSite
-
-    return defaultCompany
-  }
-
-  function detectJobSignals(jobInfo) {
-    const url = window.location.href.toLowerCase()
-    const text = document.body?.innerText?.slice(0, 4000).toLowerCase() || ''
-    const hasJsonLdJob = parseJsonLdRecords().some((record) => {
-      const type = Array.isArray(record['@type']) ? record['@type'].join(' ') : record['@type']
-      return typeof type === 'string' && type.includes('JobPosting')
-    })
-    const applyButtons = getApplyButtons()
-    const hasJobHeading = Boolean(jobInfo.title && jobInfo.title.length >= 6)
-    const jobKeywords = /job description|responsibilities|qualifications|req\.? id|apply now|what you'll do|what you’ll do/.test(text)
-    const urlSignals = /\/jobs?\b|\/careers?\b|\/job\/|\/position\//.test(url)
-    const atsHost = ATS_HOST_PATTERN.test(window.location.hostname)
-
-    return {
-      hasJsonLdJob,
-      hasJobHeading,
-      hasApplyButtons: applyButtons.length > 0,
-      jobKeywords,
-      urlSignals,
-      atsHost,
-    }
-  }
-
-  function getApplyButtons() {
-    return Array.from(document.querySelectorAll('a, button, input[type="submit"], input[type="button"]')).filter((el) => {
-      if (!isVisible(el)) return false
-      const text = cleanText(el.textContent || el.value || '').toLowerCase()
-      if (!text) return false
-      return /^(apply|apply now|apply for job|submit application|continue application|start application)$/.test(text)
-    })
-  }
-
-  function detectApplicationSignals() {
-    const forms = Array.from(document.querySelectorAll('form')).filter((form) => isVisible(form))
-    const inputs = Array.from(document.querySelectorAll('input, textarea, select')).filter((el) => isVisible(el))
-    const meaningfulInputs = inputs.filter((el) => {
-      const type = (el.getAttribute('type') || '').toLowerCase()
-      return !['hidden', 'search', 'submit', 'button', 'reset'].includes(type)
-    })
-    const applicantFields = meaningfulInputs.filter((el) => {
-      const haystack = `${el.name || ''} ${el.id || ''} ${el.placeholder || ''} ${el.getAttribute('aria-label') || ''}`.toLowerCase()
-      return /name|email|phone|resume|cv|cover|linkedin|portfolio|website|work authorization|salary/.test(haystack)
-    })
-    const hasResumeUpload = inputs.some((el) => (el.getAttribute('type') || '').toLowerCase() === 'file')
-    const submitButtons = getApplyButtons().concat(
-      Array.from(document.querySelectorAll('button, input[type="submit"]')).filter((el) => {
-        if (!isVisible(el)) return false
-        const text = cleanText(el.textContent || el.value || '').toLowerCase()
-        return /submit application|finish application|review application|send application/.test(text)
-      })
-    )
-    const formText = forms.map((form) => cleanText(form.innerText).toLowerCase()).join(' ')
-    const currentStepText = cleanText(document.body?.innerText?.slice(0, 2500)).toLowerCase()
-    const url = window.location.href.toLowerCase()
-    const atsHost = ATS_HOST_PATTERN.test(window.location.hostname)
-
-    const isActualApplicationForm =
-      hasResumeUpload ||
-      applicantFields.length >= 2 ||
-      (forms.length > 0 && meaningfulInputs.length >= 4 && /resume|cover letter|phone|email/.test(formText)) ||
-      /\/apply\b|\/application\b|\/candidate\b/.test(url) ||
-      /submit application|review your application|contact information|work experience|education/.test(currentStepText)
-
-    return {
-      forms: forms.length,
-      meaningfulInputs: meaningfulInputs.length,
-      applicantFields: applicantFields.length,
-      hasResumeUpload,
-      submitButtons: submitButtons.length,
-      atsHost,
-      isActualApplicationForm,
-    }
-  }
-
-  function analyzePage() {
-    const url = window.location.href
-    const hostname = window.location.hostname
-    const defaultCompany = detectCompanyFromHost(hostname, url)
-    const title = pickBestTitle()
-    const company = pickBestCompany(defaultCompany)
-    const jobInfo = { title, company, url }
-    const sessionState = getSessionState()
-    const recentlyDismissed = Boolean(sessionState.dismissedAt && Date.now() - sessionState.dismissedAt < DISMISS_MS)
-    const jobSignals = detectJobSignals(jobInfo)
-    const applicationSignals = detectApplicationSignals()
-
-    const shouldInject =
-      applicationSignals.isActualApplicationForm ||
-      jobSignals.hasJsonLdJob ||
-      (jobSignals.hasJobHeading && jobSignals.hasApplyButtons) ||
-      (jobSignals.atsHost && (jobSignals.hasJobHeading || jobSignals.hasApplyButtons || applicationSignals.meaningfulInputs > 0)) ||
-      (jobSignals.urlSignals && jobSignals.hasJobHeading)
-
-    const autoOpen = applicationSignals.isActualApplicationForm && Boolean(title)
-
-    return {
-      shouldInject,
-      autoOpen,
-      recentlyDismissed,
-      isLikelyApplicationPage: autoOpen,
-      jobInfo,
-    }
-  }
-
-  function getSummaryLabel() {
-    if (state.jobInfo.title && state.jobInfo.company) return `${state.jobInfo.title} - ${state.jobInfo.company}`
-    return state.jobInfo.title || state.jobInfo.company || 'Track this application'
-  }
-
-  function renderCollapsed() {
-    shadow.innerHTML = `
-      <button id="toggle" style="
-        display:flex;align-items:center;justify-content:center;
-        width:44px;height:44px;border-radius:999px;
-        background:#15803d;border:none;cursor:pointer;
-        box-shadow:0 2px 10px rgba(0,0,0,0.2);
-        font-size:20px;line-height:1;
-        transition:transform 0.15s,box-shadow 0.15s;
-      " title="${esc(getSummaryLabel())}">🎋</button>
-    `
-    const btn = shadow.getElementById('toggle')
-    btn.onmouseenter = () =>
-      Object.assign(btn.style, { transform: 'scale(1.08)', boxShadow: '0 4px 14px rgba(0,0,0,0.25)' })
-    btn.onmouseleave = () => Object.assign(btn.style, { transform: 'scale(1)', boxShadow: '0 2px 10px rgba(0,0,0,0.2)' })
-    btn.onclick = () => {
-      dismissed = false
-      expanded = true
-      setSessionState({ dismissedAt: null })
-      render()
-    }
-  }
-
-  function renderExpanded() {
-    shadow.innerHTML = `
-      <div id="card" style="
-        background:#fff;border-radius:14px;padding:18px;width:320px;
-        box-shadow:0 8px 28px rgba(0,0,0,0.16);border:1px solid #e5e7eb;
-        font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
-        font-size:13px;color:#111827;
-      ">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px;gap:12px;">
-          <div>
-            <div style="display:flex;align-items:center;gap:7px;margin-bottom:6px;">
-              <span style="font-size:20px;line-height:1;">🎋</span>
-              <span style="font-weight:700;font-size:14px;color:#111827;letter-spacing:-0.01em;">Bamboo Tracker</span>
+    } else {
+      shadow.innerHTML = `
+        <div id="card" style="
+          background:#fff;border-radius:14px;padding:18px;width:288px;
+          box-shadow:0 8px 28px rgba(0,0,0,0.16);border:1px solid #e5e7eb;
+          font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+          font-size:13px;color:#111827;
+        ">
+          <!-- Header -->
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div style="width:26px;height:26px;background:#15803d;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z"/>
+                  <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>
+                </svg>
+              </div>
+              <span style="font-weight:700;font-size:14px;color:#111827;letter-spacing:-0.01em;">Bamboo</span>
             </div>
             <div style="font-size:12px;color:#4b5563;line-height:1.45;">${esc(getSummaryLabel())}</div>
           </div>

@@ -16,15 +16,19 @@
     }
 
     .header {
-      background: #15803d;
-      padding: 16px 18px;
+      background: #f0f7f3;
+      border-bottom: 1px solid #d4e9db;
+      padding: 14px 18px;
       display: flex;
       align-items: center;
       gap: 10px;
     }
-    .header-icon { font-size: 22px; line-height: 1; }
-    .header-title { color: #fff; font-weight: 700; font-size: 15px; letter-spacing: -0.01em; }
-    .header-sub { color: rgba(255,255,255,0.75); font-size: 11px; margin-top: 1px; }
+    .header-logo {
+      width: 30px; height: 30px; background: #15803d; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .header-title { color: #111827; font-weight: 700; font-size: 15px; letter-spacing: -0.01em; }
+    .header-sub { color: #6b7280; font-size: 11px; margin-top: 1px; }
 
     .body { padding: 18px; }
 
@@ -56,9 +60,9 @@
     /* ── Logged-in state ── */
     .logged-in { text-align: center; padding: 4px 0 8px; }
     .logged-in .avatar {
-      width: 44px; height: 44px; background: #dcfce7; border-radius: 50%;
+      width: 44px; height: 44px; background: #d1fae5; border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
-      font-size: 22px; margin: 0 auto 10px;
+      margin: 0 auto 10px;
     }
     .logged-in .name { font-weight: 600; font-size: 14px; color: #111827; }
     .logged-in .email { color: #6b7280; font-size: 12px; margin-top: 2px; margin-bottom: 14px; }
@@ -89,9 +93,14 @@
 </head>
 <body>
   <div class="header">
-    <span class="header-icon">🎋</span>
+    <div class="header-logo">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z"/>
+        <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>
+      </svg>
+    </div>
     <div>
-      <div class="header-title">Bamboo Tracker</div>
+      <div class="header-title">Bamboo</div>
       <div class="header-sub">Job application tracker</div>
     </div>
   </div>
@@ -116,7 +125,12 @@
     <!-- Logged-in view -->
     <div id="loggedin-view">
       <div class="logged-in">
-        <div class="avatar">🎋</div>
+        <div class="avatar">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#15803d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z"/>
+            <path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>
+          </svg>
+        </div>
         <div class="name">Signed in</div>
         <div class="email" id="user-email"></div>
         <div class="status-pill">
@@ -125,7 +139,7 @@
         </div>
       </div>
       <button id="logout-btn" class="btn-secondary">Sign out</button>
-      <p class="hint">Visit any job page and click the 🎋 button<br>in the top-right to track your application.</p>
+      <p class="hint">Visit any job page and click the green button<br>in the top-right to track your application.</p>
     </div>
 
   </div>
