@@ -1,18 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 
 export async function POST(req: NextRequest) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  // Support both cookie-based auth (web app) and Bearer token auth (Chrome extension)
+  const authHeader = req.headers.get('Authorization')
+  const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
+
+  let userId: string | null = null
+
+  if (bearerToken) {
+    // Extension: verify the JWT with the service client, then write with it too
+    const service = createServiceClient()
+    const { data: { user } } = await service.auth.getUser(bearerToken)
+    userId = user?.id ?? null
+  } else {
+    // Web app: cookie session
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    userId = user?.id ?? null
+  }
+
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { title, company, location, url, status } = await req.json()
   if (!title) return NextResponse.json({ error: 'Title is required' }, { status: 400 })
 
-  const { data: application, error } = await supabase
+  // Use service client to bypass RLS — user_id is set explicitly
+  const service = createServiceClient()
+  const { data: application, error } = await service
     .from('applications')
     .insert({
-      user_id: user.id,
+      user_id: userId,
       title: title.trim(),
       company: company?.trim() || null,
       location: location?.trim() || null,
