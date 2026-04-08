@@ -10,6 +10,8 @@
     "128": "icon-128.png"
   },
 
+  "homepage_url": "https://www.jobbamboo.com",
+
   "permissions": ["storage", "activeTab"],
   "host_permissions": ["https://*/*", "http://*/*"],
 
