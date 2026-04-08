@@ -27,7 +27,8 @@ create table if not exists jobs (
   url text not null,
   posted_at timestamptz,
   found_at timestamptz default now(),
-  description text
+  description text,
+  is_manual boolean not null default false
 );
 
 -- Job notifications (tracks which users were notified of which jobs)

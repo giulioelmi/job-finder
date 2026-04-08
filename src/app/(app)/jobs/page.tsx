@@ -50,6 +50,7 @@ export default async function JobsPage({
     .from('jobs')
     .select('id, external_id, title, company, location, url, found_at, posted_at')
     .gte('found_at', sevenDaysCutoff)
+    .eq('is_manual', false)
     .order('found_at', { ascending: false })
     .limit(2000)
 

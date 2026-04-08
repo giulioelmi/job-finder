@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
   const external_id = `manual-${randomUUID()}`
   const { data: job, error: jobError } = await service
     .from('jobs')
-    .insert({ external_id, title, company: company || null, location: location || null, url: url || '' })
+    .insert({ external_id, title, company: company || null, location: location || null, url: url || '', is_manual: true })
     .select('id')
     .single()
 
