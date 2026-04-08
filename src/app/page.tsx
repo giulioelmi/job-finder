@@ -188,6 +188,8 @@ export default async function LandingPage() {
             <div className="flex gap-5">
               <Link href="/login" className="hover:text-gray-600 transition-colors">Sign in</Link>
               <Link href="/signup" className="hover:text-gray-600 transition-colors">Sign up</Link>
+              <Link href="/privacy-policy" className="hover:text-gray-600 transition-colors">Privacy</Link>
+              <Link href="/terms" className="hover:text-gray-600 transition-colors">Terms</Link>
             </div>
           </div>
         </footer>
