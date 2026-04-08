@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "Bamboo Job Tracker",
+  "version": "1.0.0",
+  "description": "Track job applications directly from any company website or ATS. One click to save the role, company, and URL to your Bamboo dashboard.",
+
+  "icons": {
+    "16": "icon-16.png",
+    "48": "icon-48.png",
+    "128": "icon-128.png"
+  },
+
+  "permissions": ["storage", "activeTab"],
+  "host_permissions": ["https://*/*", "http://*/*"],
+
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Bamboo Job Tracker",
+    "default_icon": {
+      "16": "icon-16.png",
+      "48": "icon-48.png",
+      "128": "icon-128.png"
+    }
+  },
+
+  "background": {
+    "service_worker": "background.js"
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["https://*/*", "http://*/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
