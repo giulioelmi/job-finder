@@ -112,6 +112,10 @@ export function ApplicationsClient({ applications: initial, userId }: Applicatio
         <div className="space-y-3">
           {filtered.map(app => {
             const job = app.jobs as { title: string; company: string | null; location: string | null; url: string; posted_at: string | null; found_at: string } | null
+            const title    = job?.title    ?? app.title    ?? 'Unknown'
+            const company  = job?.company  ?? app.company  ?? null
+            const location = job?.location ?? app.location ?? null
+            const url      = job?.url      ?? app.url      ?? null
             const dateSource = job?.posted_at ?? job?.found_at ?? app.applied_at
             return (
               <Card key={app.id}>
@@ -120,25 +124,25 @@ export function ApplicationsClient({ applications: initial, userId }: Applicatio
                     <div className="flex-1 min-w-0">
                       {/* Company */}
                       <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-0.5">
-                        {job?.company ?? '—'}
+                        {company ?? '—'}
                       </p>
                       {/* Title */}
-                      <h3 className="font-semibold text-gray-900 leading-snug">{job?.title ?? 'Unknown'}</h3>
+                      <h3 className="font-semibold text-gray-900 leading-snug">{title}</h3>
                       {/* Meta row */}
                       <div className="flex items-center gap-2 mt-1 text-xs text-gray-400">
                         <span>{formatDistanceToNow(new Date(dateSource), { addSuffix: true })}</span>
-                        {job?.location && (
+                        {location && (
                           <>
                             <span>·</span>
                             <span className="flex items-center gap-0.5 max-w-[180px] truncate">
                               <MapPin className="w-3 h-3 flex-shrink-0" />
-                              <span className="truncate">{job.location}</span>
+                              <span className="truncate">{location}</span>
                             </span>
                           </>
                         )}
-                        {job?.url && (
+                        {url && (
                           <a
-                            href={job.url}
+                            href={url}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="ml-1 text-gray-400 hover:text-gray-600 flex-shrink-0"
