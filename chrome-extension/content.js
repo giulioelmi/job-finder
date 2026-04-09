@@ -66,44 +66,43 @@
   // ─── LinkedIn info extraction ──────────────────────────────────────────────
 
   function extractLinkedInProfile() {
-    const notNav = (el) => el && !el.closest('nav, header, [role="navigation"], [role="banner"]')
+    // LinkedIn wraps the profile card in <header>, so using a nav-exclusion filter
+    // drops the name. Instead, scope to <main> which is the profile content area.
+    const scope = document.querySelector('main') || document.body
 
-    // Name — LinkedIn uses h1 or h2 depending on version/layout
-    const nameEl =
-      Array.from(document.querySelectorAll('h1')).find(notNav) ||
-      Array.from(document.querySelectorAll('h2')).find(notNav)
+    // Name — LinkedIn uses h1 or h2 depending on layout version
+    const nameEl = scope.querySelector('h1') || scope.querySelector('h2')
     const name = nameEl?.textContent?.trim().replace(/\s+/g, ' ') || ''
 
     // Headline — try known class first, then walk siblings of the name element
     let headline = ''
-    const byClass = document.querySelector('.text-body-medium.break-words')
+    const byClass = scope.querySelector('.text-body-medium.break-words') ||
+                    document.querySelector('.text-body-medium.break-words')
     if (byClass) {
       headline = byClass.textContent?.trim() || ''
     } else if (nameEl) {
-      // LinkedIn puts the headline in the next p/span/div sibling (classes are obfuscated)
+      // Walk up to 6 siblings after the name — LinkedIn puts the headline right below it
       let next = nameEl.nextElementSibling
       for (let i = 0; i < 6 && next; i++) {
         const t = next.textContent?.trim().replace(/\s+/g, ' ')
         if (t && t.length > 3 && t.length < 400) { headline = t; break }
         next = next.nextElementSibling
       }
-      // Also check parent's next sibling subtree
+      // Also check the parent's next sibling (name may be nested one level deep)
       if (!headline) {
         const t = nameEl.parentElement?.nextElementSibling?.textContent?.trim().replace(/\s+/g, ' ')
         if (t && t.length > 3 && t.length < 400) headline = t
       }
     }
 
-    // Parse "Role at/@ Company" — LinkedIn headlines often use this pattern
+    // Parse "Role at/@ Company | ..."
     const atMatch = headline.match(/^(.+?)\s+(?:\bat\b|@)\s+(.+?)(?:\s*[|·]|$)/i)
     let role    = atMatch ? atMatch[1].trim() : (headline.split(/\s*[|·]\s*/)[0]?.trim() || headline)
     let company = atMatch ? atMatch[2].trim() : ''
 
-    // Fallback: grab the first company link in the header section
+    // Fallback: first /company/ link in main content (LinkedIn shows company badge near name)
     if (!company) {
-      const companyLink = Array.from(
-        document.querySelectorAll('a[href*="/company/"]')
-      ).find(notNav)
+      const companyLink = scope.querySelector('a[href*="/company/"]')
       if (companyLink) company = companyLink.textContent?.trim().replace(/\s+/g, ' ') || ''
     }
 
