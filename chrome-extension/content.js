@@ -66,10 +66,7 @@
   // ─── LinkedIn info extraction ──────────────────────────────────────────────
 
   function extractLinkedInProfile() {
-    // ── Name ──────────────────────────────────────────────────────────────────
-    // LinkedIn reliably puts the person's full name in the aria-label of the
-    // action buttons: "Message Claire (Yuchen) Gui", "Connect with …", etc.
-    // This survives any DOM/class obfuscation because it's required for a11y.
+    // ── Name via aria-label (most reliable, survives class obfuscation) ───────
     let name = ''
     const nameBtnSelectors = [
       ['button[aria-label^="Message "]',      /^Message\s+/i],
@@ -84,38 +81,46 @@
         if (name) break
       }
     }
-    // Last-resort: first h1 or h2 on the page
     if (!name) {
       const scope = document.querySelector('main') || document.body
       name = (scope.querySelector('h1') || scope.querySelector('h2'))
                ?.textContent?.trim().replace(/\s+/g, ' ') || ''
     }
 
-    // ── Headline (role + company) ──────────────────────────────────────────────
-    // Walk ALL text-bearing leaf elements on the page looking for the LinkedIn
-    // headline format: "Title @ Company | …" or "Title at Company · …"
-    // This avoids relying on any specific class name.
+    // ── Headline — find the heading that contains the name, take next sibling ─
+    // LinkedIn puts the headline (role text) in the element right after the name h2/h1.
     let headline = ''
-    const scope = document.querySelector('main') || document.body
-    const candidates = scope.querySelectorAll('p, span, h3, div')
-    for (const el of candidates) {
-      if (el.children.length > 1) continue          // skip container elements
-      const t = (el.textContent || '').trim().replace(/\s+/g, ' ')
-      if (t.length < 5 || t.length > 400) continue
-      // Must look like "X at/@ Y" — a real LinkedIn headline
-      if (/\bat\s+\w|\s@\s+\w/.test(t) && !t.match(/^\d/)) {
-        headline = t
-        break
+    if (name) {
+      const nameEl = Array.from(document.querySelectorAll('h1, h2')).find(el => {
+        const t = (el.textContent || '').trim().replace(/\s+/g, ' ')
+        // Allow a few extra chars for verification badges / pronouns after the name
+        return t.includes(name) && t.length < name.length + 60
+      })
+      if (nameEl) {
+        let next = nameEl.nextElementSibling
+        for (let i = 0; i < 4 && next; i++) {
+          const t = (next.textContent || '').trim().replace(/\s+/g, ' ')
+          // Take the first short-ish text block — that's the headline
+          if (t && t.length > 3 && t.length < 350) { headline = t; break }
+          next = next.nextElementSibling
+        }
+        // Try parent's next sibling if no direct sibling found
+        if (!headline) {
+          const t = (nameEl.parentElement?.nextElementSibling?.textContent || '')
+            .trim().replace(/\s+/g, ' ')
+          if (t && t.length > 3 && t.length < 350) headline = t
+        }
       }
     }
 
-    // Parse "Role at/@ Company | extra stuff"
+    // ── Role + Company from headline ──────────────────────────────────────────
     const atMatch = headline.match(/^(.+?)\s+(?:\bat\b|@)\s+(.+?)(?:\s*[|·]|$)/i)
     let role    = atMatch ? atMatch[1].trim() : (headline.split(/\s*[|·]\s*/)[0]?.trim() || headline)
     let company = atMatch ? atMatch[2].trim() : ''
 
-    // Fallback: company link href contains /company/
+    // Fallback for company: first /company/ link in main content
     if (!company) {
+      const scope = document.querySelector('main') || document.body
       const companyLink = scope.querySelector('a[href*="/company/"]')
       if (companyLink) company = companyLink.textContent?.trim().replace(/\s+/g, ' ') || ''
     }
