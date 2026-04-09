@@ -36,9 +36,14 @@ export interface JobNotification {
 export interface Application {
   id: string
   user_id: string
-  job_id: string
+  job_id: string | null  // null for manually-added entries
   status: 'viewed' | 'applied' | 'interview' | 'offer' | 'rejected' | 'saved'
   notes: string
+  // inline fields set when job_id is null
+  title: string | null
+  company: string | null
+  location: string | null
+  url: string | null
   applied_at: string
   created_at: string
   updated_at: string

@@ -6,6 +6,10 @@ const SUPABASE_ANON_KEY = 'sb_publishable_N7uqXU5l44f0uRIVNFXjLw_8LyAvlBQ'
 const APP_URL = 'https://www.jobbamboo.com'
 // =============================================================================
 
+// MV3 service workers can restart unexpectedly; guard against transient init errors
+if (!chrome?.runtime?.onMessage) {
+  console.error('[Bamboo] chrome.runtime not available — service worker may be reinitializing')
+} else {
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === 'LOGIN') {
     handleLogin(message.email, message.password).then(sendResponse)
@@ -23,7 +27,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     trackApplication(message.data).then(sendResponse)
     return true
   }
+  if (message.type === 'SAVE_CONTACT') {
+    saveContact(message.data).then(sendResponse)
+    return true
+  }
 })
+} // end chrome.runtime.onMessage guard
 
 async function handleLogin(email, password) {
   try {
@@ -88,6 +97,28 @@ async function refreshToken(refreshToken) {
   // Refresh failed — clear session so user is prompted to log in again
   await chrome.storage.local.remove(['access_token', 'refresh_token', 'user_email', 'token_expires_at'])
   return { token: null, email: null }
+}
+
+async function saveContact({ name, company, role, linkedin_url, notes }) {
+  const { token } = await getValidToken()
+  if (!token) return { success: false, error: 'NOT_LOGGED_IN' }
+
+  try {
+    const res = await fetch(`${APP_URL}/api/networking/contact`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ name, company, role, linkedin_url, notes }),
+    })
+
+    if (res.ok) return { success: true }
+    const err = await res.json().catch(() => ({}))
+    return { success: false, error: err.error || `Server error (${res.status})` }
+  } catch (e) {
+    return { success: false, error: 'Network error — check your connection' }
+  }
 }
 
 async function trackApplication({ title, company, url }) {

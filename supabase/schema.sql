@@ -43,9 +43,14 @@ create table if not exists job_notifications (
 create table if not exists applications (
   id uuid primary key default uuid_generate_v4(),
   user_id uuid references auth.users(id) on delete cascade,
-  job_id uuid references jobs(id) on delete cascade,
+  job_id uuid references jobs(id) on delete cascade,  -- null for manually-added entries
   status text default 'applied' check (status in ('applied', 'interview', 'offer', 'rejected', 'saved')),
   notes text default '',
+  -- inline fields populated when job_id is null (manual entries)
+  title    text,
+  company  text,
+  location text,
+  url      text,
   applied_at timestamptz default now(),
   created_at timestamptz default now(),
   updated_at timestamptz default now(),
