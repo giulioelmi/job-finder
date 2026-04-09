@@ -58,15 +58,9 @@ export function JobListClient({ jobs, userId, appliedJobIds: initialViewed, cont
     return () => observer.disconnect()
   }, [loadMore])
 
-  async function handleViewJob(job: Job, e: React.MouseEvent) {
+  function handleViewJob(job: Job, e: React.MouseEvent) {
     e.stopPropagation()
-    if (!viewed.has(job.id)) {
-      await supabase.from('applications').upsert(
-        { user_id: userId, job_id: job.id, status: 'viewed' },
-        { onConflict: 'user_id,job_id', ignoreDuplicates: true }
-      )
-      setViewed(prev => new Set(prev).add(job.id))
-    }
+    setViewed(prev => new Set(prev).add(job.id))
     window.open(job.url, '_blank', 'noopener,noreferrer')
   }
 

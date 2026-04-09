@@ -8,7 +8,6 @@ export function cn(...inputs: ClassValue[]) {
 
 export function getStatusColor(status: string): string {
   switch (status) {
-    case 'viewed': return 'bg-gray-100 text-gray-600'
     case 'applied': return 'bg-emerald-100 text-emerald-700'
     case 'interview': return 'bg-yellow-100 text-yellow-700'
     case 'offer': return 'bg-green-100 text-green-700'
