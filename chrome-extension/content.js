@@ -66,23 +66,48 @@
   // ─── LinkedIn info extraction ──────────────────────────────────────────────
 
   function extractLinkedInProfile() {
-    // Name — always an h1 on profile pages
-    const name = document.querySelector('h1')?.textContent?.trim() || ''
+    const notNav = (el) => el && !el.closest('nav, header, [role="navigation"], [role="banner"]')
 
-    // Headline sits just below the name — the first element with the subtitle class
-    // LinkedIn uses several class patterns; try them in order
-    const headlineEl =
-      document.querySelector('.text-body-medium.break-words') ||
-      document.querySelector('[data-generated-suggestion-target] + div') ||
-      document.querySelectorAll('h1 ~ div')?.[0]
-    const headline = headlineEl?.textContent?.trim() || ''
+    // Name — LinkedIn uses h1 or h2 depending on version/layout
+    const nameEl =
+      Array.from(document.querySelectorAll('h1')).find(notNav) ||
+      Array.from(document.querySelectorAll('h2')).find(notNav)
+    const name = nameEl?.textContent?.trim().replace(/\s+/g, ' ') || ''
 
-    // Try to split "Role at Company" from the headline
-    const atMatch = headline.match(/^(.+?)\s+(?:at|@)\s+(.+?)(?:\s*·|$)/i)
-    const role    = atMatch ? atMatch[1].trim() : headline
-    const company = atMatch ? atMatch[2].trim() : ''
+    // Headline — try known class first, then walk siblings of the name element
+    let headline = ''
+    const byClass = document.querySelector('.text-body-medium.break-words')
+    if (byClass) {
+      headline = byClass.textContent?.trim() || ''
+    } else if (nameEl) {
+      // LinkedIn puts the headline in the next p/span/div sibling (classes are obfuscated)
+      let next = nameEl.nextElementSibling
+      for (let i = 0; i < 6 && next; i++) {
+        const t = next.textContent?.trim().replace(/\s+/g, ' ')
+        if (t && t.length > 3 && t.length < 400) { headline = t; break }
+        next = next.nextElementSibling
+      }
+      // Also check parent's next sibling subtree
+      if (!headline) {
+        const t = nameEl.parentElement?.nextElementSibling?.textContent?.trim().replace(/\s+/g, ' ')
+        if (t && t.length > 3 && t.length < 400) headline = t
+      }
+    }
 
-    // Canonical profile URL: strip query params/fragments
+    // Parse "Role at/@ Company" — LinkedIn headlines often use this pattern
+    const atMatch = headline.match(/^(.+?)\s+(?:\bat\b|@)\s+(.+?)(?:\s*[|·]|$)/i)
+    let role    = atMatch ? atMatch[1].trim() : (headline.split(/\s*[|·]\s*/)[0]?.trim() || headline)
+    let company = atMatch ? atMatch[2].trim() : ''
+
+    // Fallback: grab the first company link in the header section
+    if (!company) {
+      const companyLink = Array.from(
+        document.querySelectorAll('a[href*="/company/"]')
+      ).find(notNav)
+      if (companyLink) company = companyLink.textContent?.trim().replace(/\s+/g, ' ') || ''
+    }
+
+    // Canonical profile URL
     const profileMatch = window.location.href.match(/(https?:\/\/(?:www\.)?linkedin\.com\/in\/[^/?#]+)/)
     const linkedin_url = profileMatch ? profileMatch[1] : window.location.href
 
