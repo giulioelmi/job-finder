@@ -70,7 +70,20 @@ const companies = [
   'Discord', 'Figma', 'GitLab', 'Reddit', 'Datadog', 'Cloudflare',
 ]
 
-export default async function LandingPage() {
+export default async function LandingPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string>>
+}) {
+  // Forward Supabase PKCE auth codes to the callback route.
+  // This handles the case where Supabase falls back to the Site URL
+  // (https://jobbamboo.com) instead of the intended /auth/callback redirect,
+  // because /auth/callback wasn't yet in the Supabase allowed redirect URLs list.
+  const params = await searchParams
+  if (params.code) {
+    redirect(`/auth/callback?${new URLSearchParams(params).toString()}`)
+  }
+
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (user) redirect('/dashboard')
