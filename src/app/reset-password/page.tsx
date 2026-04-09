@@ -38,7 +38,7 @@ function ResetPasswordForm() {
     setExchanging(true)
     supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
       if (error) {
-        setError('This reset link is invalid or has expired. Please request a new one.')
+        setError(`Exchange failed: ${error.message} (code: ${error.status ?? 'n/a'})`)
       }
       setExchanging(false)
     })
