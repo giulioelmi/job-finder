@@ -89,6 +89,28 @@
     return { name, role, company, linkedin_url }
   }
 
+  // Extracts the recipient from LinkedIn's "New message" compose overlay,
+  // which appears on any LinkedIn page (not only /messaging/).
+  function extractFromComposePopup() {
+    const pill = document.querySelector('.msg-form__recipient-pill')
+    if (!pill) return null
+
+    // The remove (×) button reliably carries aria-label="Remove [Name]"
+    const removeBtn = pill.querySelector('button[aria-label^="Remove"]')
+    let name = removeBtn
+      ? removeBtn.getAttribute('aria-label').replace(/^Remove\s+/i, '').trim()
+      : (pill.textContent || '').replace(/\s*×\s*$/, '').trim()
+
+    if (!name) return null
+
+    // Profile link is sometimes embedded in the pill
+    const rawHref    = pill.querySelector('a[href*="/in/"]')?.getAttribute('href') || ''
+    const profileMatch = rawHref.match(/(\/in\/[^/?#]+)/)
+    const linkedin_url = profileMatch ? `https://www.linkedin.com${profileMatch[1]}` : ''
+
+    return { name, role: '', company: '', linkedin_url }
+  }
+
   function extractLinkedInConversationContact() {
     // Name shown in the conversation header or thread list item
     const nameEl =
@@ -345,15 +367,12 @@
       btn.onmouseleave = () => Object.assign(btn.style, { transform: 'scale(1)',   boxShadow: '0 2px 10px rgba(0,0,0,0.2)'  })
       btn.onclick = async () => {
         if (mode === 'linkedin') {
-          // Re-extract freshest info on click
-          contactInfo = isLinkedInMessaging()
-            ? extractLinkedInConversationContact()
-            : extractLinkedInProfile()
-          // Fall back to stored pending contact if page gave nothing
-          if (!contactInfo.name) {
-            const { pending_contact: pc } = await chrome.storage.local.get(['pending_contact'])
-            if (pc) contactInfo = pc
-          }
+          // Priority: compose popup (works anywhere) → conversation → profile page
+          contactInfo =
+            extractFromComposePopup() ||
+            (isLinkedInMessaging() ? extractLinkedInConversationContact() : null) ||
+            (isLinkedInProfile()   ? extractLinkedInProfile()             : null) ||
+            {}
         } else {
           jobInfo = extractJobInfo()
           if (!jobInfo.title) {
@@ -622,7 +641,9 @@
   // Attaches a click listener to the Send button whenever it appears/re-renders.
   // Uses a MutationObserver so it keeps working as the user switches threads.
 
-  function watchLinkedInMessaging() {
+  // Watches for any Send button on LinkedIn — works for both the full messaging
+  // thread (/messaging/) and the compose overlay that appears on any LinkedIn page.
+  function watchLinkedInSendButton() {
     let lastContactKey = ''
 
     function attachSendListener() {
@@ -633,18 +654,18 @@
       sendBtn._bambooWatched = true
 
       sendBtn.addEventListener('click', () => {
-        // Re-extract contact from the conversation at the moment of sending
-        const info = extractLinkedInConversationContact()
+        // Try compose popup first (overlay), then fall back to conversation thread
+        const info =
+          extractFromComposePopup() ||
+          extractLinkedInConversationContact()
         if (!info.name) return
         const key = info.name + info.linkedin_url
-        if (key === lastContactKey) return  // same thread, don't prompt twice in a row
+        if (key === lastContactKey) return  // same thread, don't prompt twice
         lastContactKey = key
-        // Brief delay so the message visually sends before the prompt appears
         setTimeout(() => renderContactPrompt(info), 600)
       })
     }
 
-    // Run immediately + observe DOM changes (LinkedIn SPA re-renders the composer)
     attachSendListener()
     const observer = new MutationObserver(attachSendListener)
     observer.observe(document.body, { childList: true, subtree: true })
@@ -655,12 +676,9 @@
   async function init() {
     if (isLinkedIn()) {
       mode = 'linkedin'
-
-      if (isLinkedInMessaging()) {
-        watchLinkedInMessaging()
-        render()
-        return
-      }
+      // Watch for the Send button everywhere on LinkedIn —
+      // the compose overlay can appear on any page (home, search, profile, etc.)
+      watchLinkedInSendButton()
 
       if (isLinkedInProfile()) {
         contactInfo = extractLinkedInProfile()
