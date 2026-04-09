@@ -3,7 +3,7 @@
 export const dynamic = 'force-dynamic'
 
 import { useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { createBrowserClient } from '@supabase/ssr'
 import Link from 'next/link'
 import { Leaf } from 'lucide-react'
 
@@ -18,9 +18,17 @@ export default function ForgotPasswordPage() {
     setLoading(true)
     setError('')
 
-    const supabase = createClient()
+    // Use implicit flow so Supabase sends the session directly in the hash
+    // fragment, bypassing PKCE entirely. PKCE requires the same browser session
+    // that initiated the flow, which breaks when email links open in a different
+    // browser, tab, or in-app WebView.
+    const supabase = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { auth: { flowType: 'implicit' } }
+    )
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback?type=recovery`,
+      redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/reset-password`,
     })
 
     if (error) {

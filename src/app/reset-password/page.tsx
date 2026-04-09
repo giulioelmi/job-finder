@@ -2,46 +2,56 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState, useEffect, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Leaf } from 'lucide-react'
 
 export default function ResetPasswordPage() {
-  return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-[#f7faf8]">
-        <p className="text-sm text-gray-500">Loading…</p>
-      </div>
-    }>
-      <ResetPasswordForm />
-    </Suspense>
-  )
-}
-
-function ResetPasswordForm() {
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const [exchanging, setExchanging] = useState(false)
+  const [ready, setReady] = useState(false)
   const router = useRouter()
   const supabase = createClient()
-  const searchParams = useSearchParams()
 
   useEffect(() => {
-    const code = searchParams.get('code')
-    if (!code) return
+    let settled = false
 
-    setExchanging(true)
-    supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
-      if (error) {
-        setError(`Exchange failed: ${error.message} (code: ${error.status ?? 'n/a'})`)
+    // Timeout: if no session arrives within 5s, show an error
+    const timer = setTimeout(() => {
+      if (!settled) {
+        settled = true
+        setError('Reset link is invalid or has expired. Please request a new one.')
+        setReady(true)
       }
-      setExchanging(false)
+    }, 5000)
+
+    // Case 1: user already has an active session (e.g. logged-in user changing password)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session && !settled) {
+        settled = true
+        clearTimeout(timer)
+        setReady(true)
+      }
     })
+
+    // Case 2: PASSWORD_RECOVERY fires when the hash fragment from the email
+    // link is detected by the Supabase client (implicit flow)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if ((event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN') && !settled) {
+        settled = true
+        clearTimeout(timer)
+        setReady(true)
+      }
+    })
+
+    return () => {
+      subscription.unsubscribe()
+      clearTimeout(timer)
+    }
   }, [])
 
   async function handleSubmit(e: React.FormEvent) {
@@ -63,6 +73,14 @@ function ResetPasswordForm() {
     }
   }
 
+  if (!ready) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#f7faf8]">
+        <p className="text-sm text-gray-500">Verifying reset link…</p>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#f7faf8]">
       <div className="w-full max-w-md">
@@ -75,9 +93,7 @@ function ResetPasswordForm() {
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
-          {exchanging ? (
-            <p className="text-center text-sm text-gray-500">Verifying reset link…</p>
-          ) : error && !password ? (
+          {error && !password ? (
             <div className="text-center space-y-4">
               <p className="text-sm text-red-600">{error}</p>
               <Link href="/forgot-password" className="block text-sm text-green-700 font-medium hover:underline">
