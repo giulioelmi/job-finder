@@ -37,7 +37,7 @@ export interface Application {
   id: string
   user_id: string
   job_id: string | null  // null for manually-added entries
-  status: 'viewed' | 'applied' | 'interview' | 'offer' | 'rejected' | 'saved'
+  status: 'applied' | 'interview' | 'offer' | 'rejected' | 'saved'
   notes: string
   // inline fields set when job_id is null
   title: string | null

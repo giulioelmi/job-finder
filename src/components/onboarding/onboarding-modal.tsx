@@ -399,7 +399,7 @@ export function OnboardingModal({ userId, userEmail }: OnboardingModalProps) {
                 <div>
                   <p className="text-sm font-semibold text-gray-900 mb-1">Applications</p>
                   <p className="text-sm text-gray-600">
-                    Track your job applications through the pipeline — from viewed to applied, interview, offer, or rejected. Add manual entries for jobs you found elsewhere.
+                    Track your job applications through the pipeline — from applied to interview, offer, or rejected. Add manual entries for jobs you found elsewhere.
                   </p>
                 </div>
               </div>

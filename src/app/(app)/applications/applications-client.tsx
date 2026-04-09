@@ -10,7 +10,7 @@ import { Application, ApplicationStatus } from '@/lib/types'
 import { ExternalLink, MapPin, ChevronDown, Briefcase, Plus, X, Trash2 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 
-const STATUSES: ApplicationStatus[] = ['viewed', 'applied', 'interview', 'offer', 'rejected']
+const STATUSES: ApplicationStatus[] = ['applied', 'interview', 'offer', 'rejected']
 
 interface ApplicationsClientProps {
   applications: Application[]
