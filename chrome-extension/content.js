@@ -238,6 +238,22 @@
     return document.querySelector('h1')?.textContent.trim() || ''
   }
 
+  // ─── Auto-save pending contact (LinkedIn profile pages) ──────────────────
+  // Stores the extracted profile info so it's available when the user later
+  // sends a message from the compose overlay (which has no role/company data).
+
+  async function autoSavePendingContact(info) {
+    if (!info.name) return
+    const { pending_contact: existing } = await chrome.storage.local.get(['pending_contact'])
+    const norm = (s) => (s || '').toLowerCase().trim()
+    const same = existing &&
+      norm(existing.name)        === norm(info.name) &&
+      norm(existing.linkedin_url) === norm(info.linkedin_url)
+    if (!same) {
+      await chrome.storage.local.set({ pending_contact: { ...info, savedAt: Date.now() } })
+    }
+  }
+
   // ─── Auto-save pending job ─────────────────────────────────────────────────
 
   async function autoSavePending(info) {
@@ -367,12 +383,24 @@
       btn.onmouseleave = () => Object.assign(btn.style, { transform: 'scale(1)',   boxShadow: '0 2px 10px rgba(0,0,0,0.2)'  })
       btn.onclick = async () => {
         if (mode === 'linkedin') {
-          // Priority: compose popup (works anywhere) → conversation → profile page
-          contactInfo =
+          // Pull stored profile info (has role+company from profile page visit)
+          const { pending_contact: stored } = await chrome.storage.local.get(['pending_contact'])
+          // Also try to get live name/URL from compose overlay or conversation
+          const live =
             extractFromComposePopup() ||
             (isLinkedInMessaging() ? extractLinkedInConversationContact() : null) ||
-            (isLinkedInProfile()   ? extractLinkedInProfile()             : null) ||
-            {}
+            (isLinkedInProfile()   ? extractLinkedInProfile()             : null)
+
+          if (stored || live) {
+            contactInfo = {
+              name:        live?.name        || stored?.name        || '',
+              linkedin_url: live?.linkedin_url || stored?.linkedin_url || '',
+              role:        stored?.role      || live?.role          || '',
+              company:     stored?.company   || live?.company       || '',
+            }
+          } else {
+            contactInfo = {}
+          }
         } else {
           jobInfo = extractJobInfo()
           if (!jobInfo.title) {
@@ -654,15 +682,27 @@
       sendBtn._bambooWatched = true
 
       sendBtn.addEventListener('click', () => {
-        // Try compose popup first (overlay), then fall back to conversation thread
-        const info =
-          extractFromComposePopup() ||
-          extractLinkedInConversationContact()
-        if (!info.name) return
-        const key = info.name + info.linkedin_url
-        if (key === lastContactKey) return  // same thread, don't prompt twice
-        lastContactKey = key
-        setTimeout(() => renderContactPrompt(info), 600)
+        // Pull the stored profile info (has role+company from profile page visit),
+        // merge with live compose/conversation extraction for the name/URL.
+        chrome.storage.local.get(['pending_contact'], ({ pending_contact: stored }) => {
+          const live =
+            extractFromComposePopup() ||
+            extractLinkedInConversationContact()
+
+          // Prefer stored role/company; use live name/URL if available and fresher
+          const info = {
+            name:        live?.name        || stored?.name        || '',
+            linkedin_url: live?.linkedin_url || stored?.linkedin_url || '',
+            role:        stored?.role      || live?.role          || '',
+            company:     stored?.company   || live?.company       || '',
+          }
+
+          if (!info.name) return
+          const key = info.name + info.linkedin_url
+          if (key === lastContactKey) return  // same thread, don't prompt twice
+          lastContactKey = key
+          setTimeout(() => renderContactPrompt(info), 600)
+        })
       })
     }
 
@@ -682,6 +722,7 @@
 
       if (isLinkedInProfile()) {
         contactInfo = extractLinkedInProfile()
+        await autoSavePendingContact(contactInfo)
       }
 
       render()
