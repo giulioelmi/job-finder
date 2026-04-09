@@ -99,7 +99,7 @@ export function Sidebar({ userEmail, onClose, notificationCount = 0 }: SidebarPr
         <button
           type="button"
           onClick={async () => {
-            await fetch('/auth/signout', { method: 'POST' })
+            try { await fetch('/auth/signout', { method: 'POST' }) } catch {}
             window.location.href = '/login'
           }}
           className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-green-100 transition-colors w-full"
