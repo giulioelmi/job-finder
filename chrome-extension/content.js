@@ -690,7 +690,7 @@
       }
     }
 
-    render()
+    // Not a recognised page — show nothing
   }
 
   init()
