@@ -66,47 +66,61 @@
   // ─── LinkedIn info extraction ──────────────────────────────────────────────
 
   function extractLinkedInProfile() {
-    // LinkedIn wraps the profile card in <header>, so using a nav-exclusion filter
-    // drops the name. Instead, scope to <main> which is the profile content area.
-    const scope = document.querySelector('main') || document.body
-
-    // Name — LinkedIn uses h1 or h2 depending on layout version
-    const nameEl = scope.querySelector('h1') || scope.querySelector('h2')
-    const name = nameEl?.textContent?.trim().replace(/\s+/g, ' ') || ''
-
-    // Headline — try known class first, then walk siblings of the name element
-    let headline = ''
-    const byClass = scope.querySelector('.text-body-medium.break-words') ||
-                    document.querySelector('.text-body-medium.break-words')
-    if (byClass) {
-      headline = byClass.textContent?.trim() || ''
-    } else if (nameEl) {
-      // Walk up to 6 siblings after the name — LinkedIn puts the headline right below it
-      let next = nameEl.nextElementSibling
-      for (let i = 0; i < 6 && next; i++) {
-        const t = next.textContent?.trim().replace(/\s+/g, ' ')
-        if (t && t.length > 3 && t.length < 400) { headline = t; break }
-        next = next.nextElementSibling
+    // ── Name ──────────────────────────────────────────────────────────────────
+    // LinkedIn reliably puts the person's full name in the aria-label of the
+    // action buttons: "Message Claire (Yuchen) Gui", "Connect with …", etc.
+    // This survives any DOM/class obfuscation because it's required for a11y.
+    let name = ''
+    const nameBtnSelectors = [
+      ['button[aria-label^="Message "]',      /^Message\s+/i],
+      ['button[aria-label^="Connect with "]', /^Connect with\s+/i],
+      ['button[aria-label^="Follow "]',       /^Follow\s+/i],
+      ['button[aria-label^="Send InMail to "]', /^Send InMail to\s+/i],
+    ]
+    for (const [sel, strip] of nameBtnSelectors) {
+      const btn = document.querySelector(sel)
+      if (btn) {
+        name = (btn.getAttribute('aria-label') || '').replace(strip, '').trim()
+        if (name) break
       }
-      // Also check the parent's next sibling (name may be nested one level deep)
-      if (!headline) {
-        const t = nameEl.parentElement?.nextElementSibling?.textContent?.trim().replace(/\s+/g, ' ')
-        if (t && t.length > 3 && t.length < 400) headline = t
+    }
+    // Last-resort: first h1 or h2 on the page
+    if (!name) {
+      const scope = document.querySelector('main') || document.body
+      name = (scope.querySelector('h1') || scope.querySelector('h2'))
+               ?.textContent?.trim().replace(/\s+/g, ' ') || ''
+    }
+
+    // ── Headline (role + company) ──────────────────────────────────────────────
+    // Walk ALL text-bearing leaf elements on the page looking for the LinkedIn
+    // headline format: "Title @ Company | …" or "Title at Company · …"
+    // This avoids relying on any specific class name.
+    let headline = ''
+    const scope = document.querySelector('main') || document.body
+    const candidates = scope.querySelectorAll('p, span, h3, div')
+    for (const el of candidates) {
+      if (el.children.length > 1) continue          // skip container elements
+      const t = (el.textContent || '').trim().replace(/\s+/g, ' ')
+      if (t.length < 5 || t.length > 400) continue
+      // Must look like "X at/@ Y" — a real LinkedIn headline
+      if (/\bat\s+\w|\s@\s+\w/.test(t) && !t.match(/^\d/)) {
+        headline = t
+        break
       }
     }
 
-    // Parse "Role at/@ Company | ..."
+    // Parse "Role at/@ Company | extra stuff"
     const atMatch = headline.match(/^(.+?)\s+(?:\bat\b|@)\s+(.+?)(?:\s*[|·]|$)/i)
     let role    = atMatch ? atMatch[1].trim() : (headline.split(/\s*[|·]\s*/)[0]?.trim() || headline)
     let company = atMatch ? atMatch[2].trim() : ''
 
-    // Fallback: first /company/ link in main content (LinkedIn shows company badge near name)
+    // Fallback: company link href contains /company/
     if (!company) {
       const companyLink = scope.querySelector('a[href*="/company/"]')
       if (companyLink) company = companyLink.textContent?.trim().replace(/\s+/g, ' ') || ''
     }
 
-    // Canonical profile URL
+    // ── URL ───────────────────────────────────────────────────────────────────
     const profileMatch = window.location.href.match(/(https?:\/\/(?:www\.)?linkedin\.com\/in\/[^/?#]+)/)
     const linkedin_url = profileMatch ? profileMatch[1] : window.location.href
 
@@ -406,14 +420,19 @@
       btn.onmouseenter = () => Object.assign(btn.style, { transform: 'scale(1.1)', boxShadow: '0 4px 14px rgba(0,0,0,0.25)' })
       btn.onmouseleave = () => Object.assign(btn.style, { transform: 'scale(1)',   boxShadow: '0 2px 10px rgba(0,0,0,0.2)'  })
       btn.onclick = async () => {
+        try {
         if (mode === 'linkedin') {
           // Pull stored profile info (has role+company from profile page visit)
-          const { pending_contact: stored } = await chrome.storage.local.get(['pending_contact'])
+          const stored = await chrome.storage.local.get(['pending_contact'])
+            .then(r => r.pending_contact).catch(() => null)
           // Also try to get live name/URL from compose overlay or conversation
-          const live =
-            extractFromComposePopup() ||
-            (isLinkedInMessaging() ? extractLinkedInConversationContact() : null) ||
-            (isLinkedInProfile()   ? extractLinkedInProfile()             : null)
+          let live = null
+          try {
+            live =
+              extractFromComposePopup() ||
+              (isLinkedInMessaging() ? extractLinkedInConversationContact() : null) ||
+              (isLinkedInProfile()   ? extractLinkedInProfile()             : null)
+          } catch (_) {}
 
           if (stored || live) {
             contactInfo = {
@@ -428,12 +447,14 @@
         } else {
           jobInfo = extractJobInfo()
           if (!jobInfo.title) {
-            const { pending_application: pa } = await chrome.storage.local.get(['pending_application'])
+            const pa = await chrome.storage.local.get(['pending_application'])
+              .then(r => r.pending_application).catch(() => null)
             if (pa) jobInfo = { title: pa.title, company: pa.company, url: pa.url }
           }
         }
         expanded = true
         render()
+        } catch (e) { console.error('[Bamboo] toggle error', e) }
       }
       return
     }
