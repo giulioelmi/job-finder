@@ -22,20 +22,42 @@
     const url      = window.location.href.toLowerCase()
     const hostname = window.location.hostname.toLowerCase()
 
+    // Known ATS / job board domains
     const atsDomains = [
       'greenhouse.io', 'ashbyhq.com', 'lever.co', 'workday.com',
-      'smartrecruiters.com', 'jobvite.com', 'icims.com', 'taleo.net',
-      'successfactors.com', 'breezy.hr', 'recruitee.com', 'workable.com',
-      'bamboohr.com', 'rippling.com',
+      'myworkdayjobs.com', 'smartrecruiters.com', 'jobvite.com',
+      'icims.com', 'taleo.net', 'successfactors.com', 'breezy.hr',
+      'recruitee.com', 'workable.com', 'bamboohr.com', 'rippling.com',
+      'dover.com', 'dover.io', 'pinpointhq.com', 'teamtailor.com',
+      'hire.trakstar.com', 'jazz.co', 'applytojob.com',
     ]
     if (atsDomains.some((d) => hostname.includes(d))) return true
 
+    // Subdomains strongly associated with job listings: jobs.*, careers.*, etc.
+    const sub = hostname.split('.')[0]
+    if (['jobs', 'careers', 'career', 'work', 'hiring', 'apply', 'talent', 'join'].includes(sub)) return true
+
+    // URL path patterns — include both trailing-slash and bare forms
     const careerPatterns = [
-      '/career', '/careers', '/job/', '/jobs/', '/apply', '/opening',
-      '/position', '/vacancy', '/recruit', '/hiring', '/work-with-us',
-      '/join-us', '/join-our-team', '/opportunities',
+      '/career', '/careers', '/job/', '/jobs/', '/jobs',
+      '/apply', '/opening', '/openings',
+      '/position', '/positions', '/vacancy', '/vacancies',
+      '/recruit', '/recruiting', '/hiring',
+      '/listing', '/listings', '/role/', '/roles/',
+      '/work-with-us', '/join-us', '/join-our-team', '/opportunities',
+      '/talent', '/start-here',
     ]
     if (careerPatterns.some((p) => url.includes(p))) return true
+
+    // JSON-LD JobPosting schema — definitive even on fully custom domains
+    // (Ashby, Greenhouse, and most modern ATSes always include this)
+    try {
+      for (const script of document.querySelectorAll('script[type="application/ld+json"]')) {
+        const data    = JSON.parse(script.textContent)
+        const entries = Array.isArray(data) ? data : (data['@graph'] || [data])
+        if (entries.some((e) => e['@type'] === 'JobPosting')) return true
+      }
+    } catch (_) {}
 
     return false
   }
