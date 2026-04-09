@@ -6,6 +6,10 @@ const SUPABASE_ANON_KEY = 'sb_publishable_N7uqXU5l44f0uRIVNFXjLw_8LyAvlBQ'
 const APP_URL = 'https://www.jobbamboo.com'
 // =============================================================================
 
+// MV3 service workers can restart unexpectedly; guard against transient init errors
+if (!chrome?.runtime?.onMessage) {
+  console.error('[Bamboo] chrome.runtime not available — service worker may be reinitializing')
+} else {
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === 'LOGIN') {
     handleLogin(message.email, message.password).then(sendResponse)
@@ -28,6 +32,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true
   }
 })
+} // end chrome.runtime.onMessage guard
 
 async function handleLogin(email, password) {
   try {

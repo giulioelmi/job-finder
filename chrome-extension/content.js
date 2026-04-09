@@ -303,7 +303,7 @@
   // sends a message from the compose overlay (which has no role/company data).
 
   async function autoSavePendingContact(info) {
-    if (!info.name) return
+    if (!info.name || !chrome?.storage?.local) return
     const { pending_contact: existing } = await chrome.storage.local.get(['pending_contact'])
     const norm = (s) => (s || '').toLowerCase().trim()
     const same = existing &&
@@ -317,7 +317,7 @@
   // ─── Auto-save pending job ─────────────────────────────────────────────────
 
   async function autoSavePending(info) {
-    if (!info.title) return
+    if (!info.title || !chrome?.storage?.local) return
     const { pending_application: pending } = await chrome.storage.local.get(['pending_application'])
     const norm = (s) => (s || '').toLowerCase().trim()
     const sameJob = pending &&
@@ -751,6 +751,7 @@
       sendBtn.addEventListener('click', () => {
         // Pull the stored profile info (has role+company from profile page visit),
         // merge with live compose/conversation extraction for the name/URL.
+        if (!chrome?.storage?.local) return
         chrome.storage.local.get(['pending_contact'], ({ pending_contact: stored }) => {
           const live =
             extractFromComposePopup() ||
@@ -804,7 +805,7 @@
       return
     }
 
-    if (isConfirmationPage()) {
+    if (isConfirmationPage() && chrome?.storage?.local) {
       const { pending_application: pending } = await chrome.storage.local.get(['pending_application'])
       if (pending) {
         if (Date.now() - pending.savedAt > 7 * 24 * 60 * 60 * 1000) {
