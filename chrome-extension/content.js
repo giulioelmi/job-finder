@@ -87,42 +87,59 @@
                ?.textContent?.trim().replace(/\s+/g, ' ') || ''
     }
 
-    // ── Headline — find the heading that contains the name, take next sibling ─
-    // LinkedIn puts the headline (role text) in the element right after the name h2/h1.
-    let headline = ''
+    const scope = document.querySelector('main') || document.body
+
+    // ── Role: sibling of the name h1/h2 ──────────────────────────────────────
+    // LinkedIn puts the headline/title in the element right below the name.
+    let role = ''
     if (name) {
       const nameEl = Array.from(document.querySelectorAll('h1, h2')).find(el => {
         const t = (el.textContent || '').trim().replace(/\s+/g, ' ')
-        // Allow a few extra chars for verification badges / pronouns after the name
-        return t.includes(name) && t.length < name.length + 60
+        return t.includes(name) && t.length < name.length + 120
       })
       if (nameEl) {
         let next = nameEl.nextElementSibling
-        for (let i = 0; i < 4 && next; i++) {
+        for (let i = 0; i < 6 && next; i++) {
           const t = (next.textContent || '').trim().replace(/\s+/g, ' ')
-          // Take the first short-ish text block — that's the headline
-          if (t && t.length > 3 && t.length < 350) { headline = t; break }
+          if (t && t.length > 3 && t.length < 350 && !t.includes(name)) {
+            role = t.split(/\s*[|·]\s*/)[0].trim()
+            break
+          }
           next = next.nextElementSibling
-        }
-        // Try parent's next sibling if no direct sibling found
-        if (!headline) {
-          const t = (nameEl.parentElement?.nextElementSibling?.textContent || '')
-            .trim().replace(/\s+/g, ' ')
-          if (t && t.length > 3 && t.length < 350) headline = t
         }
       }
     }
 
-    // ── Role + Company from headline ──────────────────────────────────────────
-    const atMatch = headline.match(/^(.+?)\s+(?:\bat\b|@)\s+(.+?)(?:\s*[|·]|$)/i)
-    let role    = atMatch ? atMatch[1].trim() : (headline.split(/\s*[|·]\s*/)[0]?.trim() || headline)
-    let company = atMatch ? atMatch[2].trim() : ''
+    // ── Company: scan leaf elements for "X at/@ Company" headline pattern ─────
+    // Skip elements whose text contains the person's name — those are container
+    // divs that aggregate the whole profile card into one blob of text.
+    let company = ''
+    const candidates = scope.querySelectorAll('p, span, h3, div')
+    for (const el of candidates) {
+      if (el.children.length > 1) continue
+      const t = (el.textContent || '').trim().replace(/\s+/g, ' ')
+      if (t.length < 5 || t.length > 400) continue
+      if (name && t.includes(name)) continue   // ← key: skip name-containing blobs
+      if (/\bat\s+\w|\s@\s+\w/.test(t)) {
+        const m = t.match(/^(.+?)\s+(?:\bat\b|@)\s+(.+?)(?:\s*[|·]|$)/i)
+        if (m) {
+          company = m[2].trim()
+          if (!role) role = m[1].trim()  // use headline role only if sibling gave nothing
+          break
+        }
+      }
+    }
 
-    // Fallback for company: first /company/ link in main content
+    // ── Company fallback: /company/ link NOT in the education section ─────────
     if (!company) {
-      const scope = document.querySelector('main') || document.body
-      const companyLink = scope.querySelector('a[href*="/company/"]')
-      if (companyLink) company = companyLink.textContent?.trim().replace(/\s+/g, ' ') || ''
+      const educationHeading = Array.from(scope.querySelectorAll('h2, h3'))
+        .find(h => /^education$/i.test((h.textContent || '').trim()))
+      const educationSection = educationHeading?.closest('section') || educationHeading?.parentElement
+      const companyLinks = Array.from(scope.querySelectorAll('a[href*="/company/"]'))
+        .filter(a => !educationSection?.contains(a))
+      if (companyLinks.length > 0) {
+        company = companyLinks[0].textContent?.trim().replace(/\s+/g, ' ') || ''
+      }
     }
 
     // ── URL ───────────────────────────────────────────────────────────────────
