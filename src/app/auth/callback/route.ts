@@ -29,6 +29,14 @@ export async function GET(request: Request) {
   )
 
   if (code) {
+    if (type === 'recovery') {
+      // For password recovery, defer code exchange to the browser client on
+      // the reset-password page. The PKCE verifier was stored by the browser
+      // client and is more reliably accessed client-side than server-side.
+      return NextResponse.redirect(
+        `${origin}/reset-password?code=${encodeURIComponent(code)}`
+      )
+    }
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
       return NextResponse.redirect(`${origin}${next}`)
