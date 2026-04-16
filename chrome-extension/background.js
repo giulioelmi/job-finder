@@ -31,6 +31,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     saveContact(message.data).then(sendResponse)
     return true
   }
+  if (message.type === 'EXTRACT_JOB') {
+    extractJob(message.data).then(sendResponse)
+    return true
+  }
 })
 } // end chrome.runtime.onMessage guard
 
@@ -118,6 +122,26 @@ async function saveContact({ name, company, role, linkedin_url, notes }) {
     return { success: false, error: err.error || `Server error (${res.status})` }
   } catch (e) {
     return { success: false, error: 'Network error — check your connection' }
+  }
+}
+
+async function extractJob({ text, url }) {
+  const { token } = await getValidToken()
+  if (!token) return { error: 'NOT_LOGGED_IN' }
+
+  try {
+    const res = await fetch(`${APP_URL}/api/extension/extract-job`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ text, url }),
+    })
+    if (!res.ok) return { error: 'REQUEST_FAILED' }
+    return await res.json()
+  } catch {
+    return { error: 'NETWORK_ERROR' }
   }
 }
 
