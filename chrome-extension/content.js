@@ -225,99 +225,111 @@
     return { name, role, company, linkedin_url }
   }
 
-  // ─── Job info extraction ───────────────────────────────────────────────────
+  // ─── Job info extraction (LLM-driven) ──────────────────────────────────────
 
-  function extractJobInfo() {
-    const url      = window.location.href
-    const hostname = window.location.hostname.replace(/^www\./, '')
+  const EXTRACT_TTL_MS = 2 * 60 * 60 * 1000
 
-    const toTitleCase = (slug) =>
-      slug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
-
-    let ldTitle = '', ldCompany = ''
+  // JSON-LD fast path — covers Greenhouse, Ashby, Lever and most modern ATSes.
+  function extractFromJsonLd() {
     try {
-      const scripts = document.querySelectorAll('script[type="application/ld+json"]')
-      for (const s of scripts) {
+      for (const s of document.querySelectorAll('script[type="application/ld+json"]')) {
         const data    = JSON.parse(s.textContent)
         const entries = Array.isArray(data) ? data : (data['@graph'] || [data])
-        for (const entry of entries) {
-          if (entry['@type'] === 'JobPosting') {
-            ldTitle   = entry.title || entry.name || ''
-            ldCompany = entry.hiringOrganization?.name || ''
-            break
+        for (const e of entries) {
+          if (e['@type'] === 'JobPosting') {
+            return {
+              is_job_page: true,
+              title:   (e.title || e.name || '').trim(),
+              company: (e.hiringOrganization?.name || '').trim(),
+            }
           }
         }
-        if (ldTitle) break
       }
     } catch (_) {}
-
-    let company = ldCompany
-    if (!company) {
-      if (hostname.includes('greenhouse.io')) {
-        const m = url.match(/greenhouse\.io\/([^/?#]+)/); if (m) company = toTitleCase(m[1])
-      } else if (hostname.includes('ashbyhq.com')) {
-        const m = url.match(/ashbyhq\.com\/([^/?#]+)/);  if (m) company = toTitleCase(m[1])
-      } else if (hostname.includes('lever.co')) {
-        const m = url.match(/lever\.co\/([^/?#]+)/);     if (m) company = toTitleCase(m[1])
-      } else if (hostname.includes('workday.com')) {
-        const m = hostname.match(/([^.]+)\.myworkdayjobs/); if (m) company = toTitleCase(m[1])
-      } else if (hostname.includes('smartrecruiters.com')) {
-        const m = url.match(/smartrecruiters\.com\/([^/?#]+)/); if (m) company = toTitleCase(m[1])
-      } else if (hostname.includes('jobvite.com')) {
-        const m = hostname.match(/([^.]+)\.jobvite\.com/); if (m) company = toTitleCase(m[1])
-      }
-    }
-    if (!company) {
-      const parts = hostname.split('.')
-      const raw   = parts.length >= 2 ? parts[parts.length - 2] : hostname
-      company     = raw.charAt(0).toUpperCase() + raw.slice(1)
-    }
-
-    let title = ldTitle
-    if (!title) title = findATSTitle(hostname) || findMainH1() || ''
-    title = title
-      .split(' | ')[0].split(' - ')[0].split(' – ')[0].split(' · ')[0]
-      .replace(/^Jobs? at /i, '').trim()
-
-    return { title, company, url }
+    return null
   }
 
-  function findATSTitle(hostname) {
-    const selectors = []
-    if (hostname.includes('greenhouse.io'))        selectors.push('.app-title', '[class*="posting-title"]', 'h1')
-    else if (hostname.includes('lever.co'))         selectors.push('.posting-headline h2', '.posting-title h2', 'h2')
-    else if (hostname.includes('ashbyhq.com'))      selectors.push('[class*="JobPosting"] h1', 'h1')
-    else if (hostname.includes('workday.com'))      selectors.push('[data-automation-id="jobPostingHeader"]', '[data-automation-id="jobTitle"]')
-    else if (hostname.includes('smartrecruiters'))  selectors.push('.job-title h1', '[class*="jobTitle"]')
-    else if (hostname.includes('bamboohr.com'))     selectors.push('#BambooHR-ATS h2', '.BambooHR-ATS-Jobs-Item h2')
-    else if (hostname.includes('rippling.com'))     selectors.push('[class*="job"] h1', '[class*="position"] h1')
-    else if (hostname.includes('workable.com'))     selectors.push('[class*="posting-header"] h1', 'h1')
-    else if (hostname.includes('recruitee.com'))    selectors.push('[class*="job-header"] h1', '.offer-title', 'h1')
-    else if (hostname.includes('breezy.hr'))        selectors.push('.position-title h1', 'h1')
+  // Aggressively strip the DOM down to signal-bearing text (<~6KB / ~1500 tokens).
+  function filterPageForLLM() {
+    const parts = []
 
-    for (const sel of selectors) {
-      const el   = document.querySelector(sel)
-      const text = el?.textContent.trim()
-      if (text && text.length > 2 && text.length < 200) return text
-    }
-    return ''
+    if (document.title) parts.push(`Title: ${document.title.trim()}`)
+    const meta = (sel) => document.querySelector(sel)?.getAttribute('content')?.trim() || ''
+    const ogT  = meta('meta[property="og:title"]')       || meta('meta[name="twitter:title"]')
+    const ogS  = meta('meta[property="og:site_name"]')
+    const ogD  = meta('meta[property="og:description"]') || meta('meta[name="description"]')
+    if (ogT) parts.push(`OG title: ${ogT}`)
+    if (ogS) parts.push(`OG site: ${ogS}`)
+    if (ogD) parts.push(`OG desc: ${ogD.slice(0, 300)}`)
+
+    const root  = document.querySelector('main, [role="main"], article') || document.body
+    const clone = root.cloneNode(true)
+    clone.querySelectorAll(
+      'script, style, noscript, nav, header, footer, aside, svg, iframe, ' +
+      '[role="navigation"], [role="banner"], [role="contentinfo"]'
+    ).forEach((el) => el.remove())
+
+    const headings = Array.from(clone.querySelectorAll('h1, h2, h3'))
+      .slice(0, 12)
+      .map((h) => (h.textContent || '').trim().replace(/\s+/g, ' '))
+      .filter((t) => t && t.length < 200)
+    if (headings.length) parts.push(`Headings: ${headings.join(' | ')}`)
+
+    const body = (clone.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 1500)
+    if (body) parts.push(`Body: ${body}`)
+
+    return parts.join('\n').slice(0, 6000)
   }
 
-  function findMainH1() {
-    const semantic = document.querySelector('[data-job-title], .job-title, [itemprop="title"]')
-    if (semantic) { const t = semantic.textContent.trim(); if (t.length > 2 && t.length < 200) return t }
+  // Per-URL cache — avoid re-extracting when the user navigates back.
+  async function getUrlCache(url) {
+    if (!chrome?.storage?.local) return null
+    const { extract_cache = {} } = await chrome.storage.local.get(['extract_cache'])
+    const entry = extract_cache[url]
+    if (!entry) return null
+    if (Date.now() - entry.cachedAt > EXTRACT_TTL_MS) return null
+    return entry.result
+  }
 
-    const mainH1 = Array.from(document.querySelectorAll('h1')).find((el) => {
-      if (el.closest('header, nav, aside, [role="navigation"], [role="banner"]')) return false
-      const text = el.textContent.trim()
-      return text.length > 4 && text.length < 200
+  async function setUrlCache(url, result) {
+    if (!chrome?.storage?.local) return
+    const { extract_cache = {} } = await chrome.storage.local.get(['extract_cache'])
+    extract_cache[url] = { result, cachedAt: Date.now() }
+    const keys = Object.keys(extract_cache)
+    if (keys.length > 50) {
+      const stale = keys
+        .sort((a, b) => extract_cache[a].cachedAt - extract_cache[b].cachedAt)
+        .slice(0, keys.length - 50)
+      for (const k of stale) delete extract_cache[k]
+    }
+    await chrome.storage.local.set({ extract_cache })
+  }
+
+  // "Active job" — sticks across the multi-page application flow on the same origin.
+  async function getActiveJob() {
+    if (!chrome?.storage?.local) return null
+    const { active_job } = await chrome.storage.local.get(['active_job'])
+    if (!active_job) return null
+    if (Date.now() - active_job.extractedAt > EXTRACT_TTL_MS) return null
+    if (active_job.origin !== window.location.origin) return null
+    return active_job
+  }
+
+  async function setActiveJob({ title, company }) {
+    if (!chrome?.storage?.local) return
+    await chrome.storage.local.set({
+      active_job: {
+        title, company,
+        url:         window.location.href,
+        origin:      window.location.origin,
+        extractedAt: Date.now(),
+      },
     })
-    if (mainH1) return mainH1.textContent.trim()
+  }
 
-    const mainEl = document.querySelector('main, [role="main"]')
-    if (mainEl) { const h = mainEl.querySelector('h1, h2'); if (h) return h.textContent.trim() }
-
-    return document.querySelector('h1')?.textContent.trim() || ''
+  async function clearActiveJob() {
+    if (!chrome?.storage?.local) return
+    await chrome.storage.local.remove(['active_job'])
   }
 
   // ─── Auto-save pending contact (LinkedIn profile pages) ──────────────────
@@ -336,22 +348,6 @@
     }
   }
 
-  // ─── Auto-save pending job ─────────────────────────────────────────────────
-
-  async function autoSavePending(info) {
-    if (!info.title || !chrome?.storage?.local) return
-    const { pending_application: pending } = await chrome.storage.local.get(['pending_application'])
-    const norm = (s) => (s || '').toLowerCase().trim()
-    const sameJob = pending &&
-      norm(pending.title)   === norm(info.title) &&
-      norm(pending.company) === norm(info.company)
-    if (!sameJob) {
-      await chrome.storage.local.set({
-        pending_application: { title: info.title, company: info.company, url: info.url, savedAt: Date.now() },
-      })
-    }
-  }
-
   // ─── Shadow DOM host ───────────────────────────────────────────────────────
 
   const host = document.createElement('div')
@@ -362,11 +358,13 @@
 
   // ─── State ────────────────────────────────────────────────────────────────
 
-  let expanded    = false
-  let dismissed   = false
-  let mode        = 'job'       // 'job' | 'linkedin'
-  let jobInfo     = {}
-  let contactInfo = {}
+  let expanded          = false
+  let dismissed         = false
+  let mode              = 'job'       // 'job' | 'linkedin'
+  let jobInfo           = {}
+  let contactInfo       = {}
+  let extractionPending = false        // true while the LLM call is in-flight
+  let extractionError   = ''           // human-readable error from the last extraction attempt
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
 
@@ -465,39 +463,33 @@
       btn.onmouseleave = () => Object.assign(btn.style, { transform: 'scale(1)',   boxShadow: '0 2px 10px rgba(0,0,0,0.2)'  })
       btn.onclick = async () => {
         try {
-        if (mode === 'linkedin') {
-          // Pull stored profile info (has role+company from profile page visit)
-          const stored = await chrome.storage.local.get(['pending_contact'])
-            .then(r => r.pending_contact).catch(() => null)
-          // Also try to get live name/URL from compose overlay or conversation
-          let live = null
-          try {
-            live =
-              extractFromComposePopup() ||
-              (isLinkedInMessaging() ? extractLinkedInConversationContact() : null) ||
-              (isLinkedInProfile()   ? extractLinkedInProfile()             : null)
-          } catch (_) {}
+          if (mode === 'linkedin') {
+            // Pull stored profile info (has role+company from profile page visit)
+            const stored = await chrome.storage.local.get(['pending_contact'])
+              .then(r => r.pending_contact).catch(() => null)
+            // Also try to get live name/URL from compose overlay or conversation
+            let live = null
+            try {
+              live =
+                extractFromComposePopup() ||
+                (isLinkedInMessaging() ? extractLinkedInConversationContact() : null) ||
+                (isLinkedInProfile()   ? extractLinkedInProfile()             : null)
+            } catch (_) {}
 
-          if (stored || live) {
-            contactInfo = {
-              name:        live?.name        || stored?.name        || '',
-              linkedin_url: live?.linkedin_url || stored?.linkedin_url || '',
-              role:        stored?.role      || live?.role          || '',
-              company:     stored?.company   || live?.company       || '',
+            if (stored || live) {
+              contactInfo = {
+                name:        live?.name        || stored?.name        || '',
+                linkedin_url: live?.linkedin_url || stored?.linkedin_url || '',
+                role:        stored?.role      || live?.role          || '',
+                company:     stored?.company   || live?.company       || '',
+              }
+            } else {
+              contactInfo = {}
             }
-          } else {
-            contactInfo = {}
           }
-        } else {
-          jobInfo = extractJobInfo()
-          if (!jobInfo.title) {
-            const pa = await chrome.storage.local.get(['pending_application'])
-              .then(r => r.pending_application).catch(() => null)
-            if (pa) jobInfo = { title: pa.title, company: pa.company, url: pa.url }
-          }
-        }
-        expanded = true
-        render()
+          // Job mode: jobInfo is already populated (or being populated) by startExtraction()
+          expanded = true
+          render()
         } catch (e) { console.error('[Bamboo] toggle error', e) }
       }
       return
@@ -513,28 +505,73 @@
 
   // ─── Job card ─────────────────────────────────────────────────────────────
 
+  // Shimmer keyframes + skeleton bar for the loading state.
+  const SHIMMER_CSS = `
+    @keyframes bamboo-shimmer {
+      0%   { background-position: -200px 0; }
+      100% { background-position: 200px 0; }
+    }
+    .bamboo-skel {
+      height: 32px; border-radius: 8px;
+      background: linear-gradient(90deg, #f3f4f6 0%, #e5e7eb 50%, #f3f4f6 100%);
+      background-size: 400px 100%;
+      animation: bamboo-shimmer 1.2s ease-in-out infinite;
+    }
+    .bamboo-skel-sm { height: 11px; width: 60%; margin-bottom: 6px; }`
+
+  function skeletonField(labelText) {
+    return `
+      <div style="margin-bottom:10px;">
+        <label style="${LABEL_STYLE}">${labelText}</label>
+        <div class="bamboo-skel"></div>
+      </div>`
+  }
+
   function renderJobCard() {
+    const loading = extractionPending && !jobInfo.title && !jobInfo.company
+    const fields  = loading
+      ? skeletonField('Job Title') + skeletonField('Company')
+      : fieldHtml('title-input',   'Job Title', jobInfo.title,   'e.g. Software Engineer', false) +
+        fieldHtml('company-input', 'Company',   jobInfo.company, 'e.g. Stripe',            false)
+
+    const applyLabel    = loading ? 'Detecting…' : '✓ Mark as Applied'
+    const applyDisabled = loading ? 'disabled' : ''
+    const applyOpacity  = loading ? '0.6' : '1'
+
+    const errBanner = extractionError && !loading
+      ? `<div style="
+          display:flex;align-items:flex-start;gap:6px;
+          font-size:11px;color:#92400e;background:#fffbeb;
+          border:1px solid #fde68a;border-radius:7px;
+          padding:6px 8px;margin-bottom:10px;line-height:1.4;">
+          <span style="flex-shrink:0;">⚠</span>
+          <span>${esc(extractionError)}</span>
+        </div>`
+      : ''
+
     shadow.innerHTML = `
+      <style>${SHIMMER_CSS}</style>
       <div id="card" style="${CARD_STYLE}">
-        ${cardHeader('')}
-        ${fieldHtml('title-input', 'Job Title', jobInfo.title, 'e.g. Software Engineer', false)}
-        ${fieldHtml('company-input', 'Company', jobInfo.company, 'e.g. Stripe', false)}
+        ${cardHeader(loading ? 'Detecting…' : '')}
+        ${fields}
+        ${errBanner}
         ${msgHtml()}
-        <button id="apply-btn" style="
+        <button id="apply-btn" ${applyDisabled} style="
           width:100%;padding:10px;background:#15803d;color:#fff;border:none;
-          border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;
+          border-radius:9px;font-size:13px;font-weight:600;
+          cursor:${loading ? 'not-allowed' : 'pointer'};opacity:${applyOpacity};
           font-family:inherit;letter-spacing:0.01em;transition:background 0.15s;
-        ">✓ Mark as Applied</button>
+        ">${applyLabel}</button>
         <button id="minimize" style="
           width:100%;padding:6px;background:none;color:#9ca3af;border:none;
           border-radius:7px;font-size:12px;cursor:pointer;margin-top:6px;font-family:inherit;
         ">Minimize</button>
       </div>`
 
-    attachFocusStyles()
+    if (!loading) attachFocusStyles()
     shadow.getElementById('close').onclick   = () => { dismissed = true; render() }
     shadow.getElementById('minimize').onclick = () => { expanded = false; render() }
-    shadow.getElementById('apply-btn').onclick = handleApply
+    if (!loading) shadow.getElementById('apply-btn').onclick = handleApply
   }
 
   async function handleApply() {
@@ -558,7 +595,7 @@
     }
 
     if (response.success) {
-      chrome.storage.local.remove(['pending_application'])
+      await clearActiveJob()
       btn.style.background = '#16a34a'; btn.style.opacity = '1'; btn.textContent = '✓ Added to Bamboo!'
       showMsg(`"${title}" saved to your applications.`, 'success')
       setTimeout(() => { expanded = false; dismissed = true; render() }, 2200)
@@ -597,7 +634,7 @@
       </div>`
 
     async function dismiss() {
-      await chrome.storage.local.remove(['pending_application'])
+      await clearActiveJob()
       render()
     }
     shadow.getElementById('conf-close').onclick = dismiss
@@ -617,7 +654,7 @@
         btn.disabled = false; btn.textContent = '✓ Yes, I applied'; btn.style.opacity = '1'; return
       }
       if (response.success) {
-        await chrome.storage.local.remove(['pending_application'])
+        await clearActiveJob()
         showMsg('Saved to your Bamboo applications!', 'success')
         setTimeout(() => render(), 2000)
       } else if (response.error === 'NOT_LOGGED_IN') {
@@ -801,6 +838,101 @@
     observer.observe(document.body, { childList: true, subtree: true })
   }
 
+  // ─── Extraction driver ────────────────────────────────────────────────────
+
+  // Runs as early as possible so the result is ready by the time the user
+  // clicks the floating button. Resolves the card state in priority order:
+  //   1. per-URL cache hit (instant)
+  //   2. JSON-LD JobPosting (instant, skips the LLM)
+  //   3. fresh same-origin active_job (continuation page — skip LLM)
+  //   4. LLM extraction
+  async function startExtraction() {
+    const url = window.location.href
+
+    // 1. per-URL cache hit
+    const cached = await getUrlCache(url)
+    if (cached) {
+      if (cached.is_job_page) {
+        jobInfo = { title: cached.title, company: cached.company, url }
+      }
+      return
+    }
+
+    const activeJob = await getActiveJob()
+
+    // 2. JSON-LD fast path
+    const ld = extractFromJsonLd()
+    if (ld?.is_job_page) {
+      jobInfo = { title: ld.title, company: ld.company, url }
+      await setUrlCache(url, ld)
+      await setActiveJob(ld)
+      return
+    }
+
+    // 3. Continuation page — reuse active_job and skip the LLM.
+    //    Covers both "no job-page signal at all" (pure confirm pages) and
+    //    "looks like /apply/* on the same origin" (multi-step application flow).
+    const looksLikeContinuation = /\/(apply|application|submit|confirm|thank[-_]?you|success|complete|step)\b/i
+      .test(window.location.pathname)
+    if (activeJob && (!isJobPage() || looksLikeContinuation)) {
+      jobInfo = { title: activeJob.title, company: activeJob.company, url }
+      return
+    }
+
+    // Plain non-job page with no active flow — nothing to show
+    if (!isJobPage()) return
+
+    // 4. LLM path — pre-fill with active_job (if any) so the card isn't blank
+    //    while shimmering; shimmer only kicks in when we have nothing to show.
+    extractionPending = true
+    extractionError   = ''
+    if (activeJob) jobInfo = { title: activeJob.title, company: activeJob.company, url }
+    if (expanded) render()
+
+    const text = filterPageForLLM()
+    let result
+    try {
+      result = await chrome.runtime.sendMessage({ type: 'EXTRACT_JOB', data: { text, url } })
+    } catch (e) {
+      result = { error: 'EXTENSION_UNAVAILABLE', detail: String(e?.message || e) }
+    }
+
+    extractionPending = false
+
+    if (result?.is_job_page) {
+      jobInfo = { title: result.title, company: result.company, url }
+      await setUrlCache(url, result)
+      await setActiveJob(result)
+    } else if (result?.error) {
+      // Auth / network error — don't cache, don't hide; leave fields empty
+      // so the user can still fill them in manually and retry on next visit.
+      extractionError = errorLabel(result.error, result.detail)
+      if (!jobInfo.title) jobInfo = { title: '', company: '', url }
+    } else if (activeJob) {
+      // LLM says "not a job page" but we're mid-flow — stick with active_job
+      jobInfo = { title: activeJob.title, company: activeJob.company, url }
+    } else {
+      // Not a job page and nothing in flight — hide the button
+      dismissed = true
+      await setUrlCache(url, { is_job_page: false, title: '', company: '' })
+    }
+
+    render()
+  }
+
+  function errorLabel(code, detail) {
+    const suffix = detail ? ` — ${String(detail).slice(0, 120)}` : ''
+    switch (code) {
+      case 'NOT_LOGGED_IN':         return 'Sign in to auto-detect'
+      case 'REQUEST_FAILED':        return `Server error${suffix}`
+      case 'NETWORK_ERROR':         return `Network error${suffix}`
+      case 'EXTENSION_UNAVAILABLE': return `Extension error${suffix}`
+      case 'OPENAI_ERROR':          return `OpenAI error${suffix}`
+      case 'EXTRACTION_FAILED':     return `Extraction failed${suffix}`
+      default: return `Auto-detect failed${code ? ` (${code})` : ''}${suffix}`
+    }
+  }
+
   // ─── Init ─────────────────────────────────────────────────────────────────
 
   async function init() {
@@ -819,27 +951,21 @@
       return
     }
 
-    // ── Job tracking flow ──────────────────────────────────────────────────
-    if (isJobPage()) {
-      const info = extractJobInfo()
-      await autoSavePending(info)
-      render()
-      return
-    }
-
-    if (isConfirmationPage() && chrome?.storage?.local) {
-      const { pending_application: pending } = await chrome.storage.local.get(['pending_application'])
-      if (pending) {
-        if (Date.now() - pending.savedAt > 7 * 24 * 60 * 60 * 1000) {
-          await chrome.storage.local.remove(['pending_application'])
-        } else {
-          renderConfirmation(pending)
-          return
-        }
+    // ── Confirmation page: "Did you just apply to X?" banner ──────────────
+    if (isConfirmationPage()) {
+      const activeJob = await getActiveJob()
+      if (activeJob) {
+        renderConfirmation({ title: activeJob.title, company: activeJob.company, url: activeJob.url })
+        return
       }
     }
 
-    // Not a recognised page — show nothing
+    // ── Job tracking flow ──────────────────────────────────────────────────
+    const activeJob = await getActiveJob()
+    if (!isJobPage() && !activeJob) return   // plain non-job page — show nothing
+
+    render()                  // show minimized button immediately
+    startExtraction()         // resolve jobInfo in parallel (may re-render)
   }
 
   init()
