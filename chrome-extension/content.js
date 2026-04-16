@@ -364,6 +364,7 @@
   let jobInfo           = {}
   let contactInfo       = {}
   let extractionPending = false        // true while the LLM call is in-flight
+  let extractionError   = ''           // human-readable error from the last extraction attempt
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
 
@@ -537,11 +538,23 @@
     const applyDisabled = loading ? 'disabled' : ''
     const applyOpacity  = loading ? '0.6' : '1'
 
+    const errBanner = extractionError && !loading
+      ? `<div style="
+          display:flex;align-items:flex-start;gap:6px;
+          font-size:11px;color:#92400e;background:#fffbeb;
+          border:1px solid #fde68a;border-radius:7px;
+          padding:6px 8px;margin-bottom:10px;line-height:1.4;">
+          <span style="flex-shrink:0;">⚠</span>
+          <span>${esc(extractionError)}</span>
+        </div>`
+      : ''
+
     shadow.innerHTML = `
       <style>${SHIMMER_CSS}</style>
       <div id="card" style="${CARD_STYLE}">
         ${cardHeader(loading ? 'Detecting…' : '')}
         ${fields}
+        ${errBanner}
         ${msgHtml()}
         <button id="apply-btn" ${applyDisabled} style="
           width:100%;padding:10px;background:#15803d;color:#fff;border:none;
@@ -872,6 +885,7 @@
     // 4. LLM path — pre-fill with active_job (if any) so the card isn't blank
     //    while shimmering; shimmer only kicks in when we have nothing to show.
     extractionPending = true
+    extractionError   = ''
     if (activeJob) jobInfo = { title: activeJob.title, company: activeJob.company, url }
     if (expanded) render()
 
@@ -879,8 +893,8 @@
     let result
     try {
       result = await chrome.runtime.sendMessage({ type: 'EXTRACT_JOB', data: { text, url } })
-    } catch (_) {
-      result = null
+    } catch (e) {
+      result = { error: 'EXTENSION_UNAVAILABLE', detail: String(e?.message || e) }
     }
 
     extractionPending = false
@@ -892,6 +906,7 @@
     } else if (result?.error) {
       // Auth / network error — don't cache, don't hide; leave fields empty
       // so the user can still fill them in manually and retry on next visit.
+      extractionError = errorLabel(result.error, result.detail)
       if (!jobInfo.title) jobInfo = { title: '', company: '', url }
     } else if (activeJob) {
       // LLM says "not a job page" but we're mid-flow — stick with active_job
@@ -903,6 +918,19 @@
     }
 
     render()
+  }
+
+  function errorLabel(code, detail) {
+    const suffix = detail ? ` — ${String(detail).slice(0, 120)}` : ''
+    switch (code) {
+      case 'NOT_LOGGED_IN':         return 'Sign in to auto-detect'
+      case 'REQUEST_FAILED':        return `Server error${suffix}`
+      case 'NETWORK_ERROR':         return `Network error${suffix}`
+      case 'EXTENSION_UNAVAILABLE': return `Extension error${suffix}`
+      case 'OPENAI_ERROR':          return `OpenAI error${suffix}`
+      case 'EXTRACTION_FAILED':     return `Extraction failed${suffix}`
+      default: return `Auto-detect failed${code ? ` (${code})` : ''}${suffix}`
+    }
   }
 
   // ─── Init ─────────────────────────────────────────────────────────────────

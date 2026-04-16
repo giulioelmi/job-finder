@@ -138,10 +138,13 @@ async function extractJob({ text, url }) {
       },
       body: JSON.stringify({ text, url }),
     })
-    if (!res.ok) return { error: 'REQUEST_FAILED' }
-    return await res.json()
-  } catch {
-    return { error: 'NETWORK_ERROR' }
+    const body = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      return { error: body.error || 'REQUEST_FAILED', detail: body.detail || `HTTP ${res.status}` }
+    }
+    return body
+  } catch (e) {
+    return { error: 'NETWORK_ERROR', detail: String(e?.message || e) }
   }
 }
 

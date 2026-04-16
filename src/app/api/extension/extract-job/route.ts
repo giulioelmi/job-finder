@@ -54,7 +54,13 @@ export async function POST(req: NextRequest) {
       }),
     })
 
-    if (!res.ok) return NextResponse.json(EMPTY)
+    if (!res.ok) {
+      const body = await res.text().catch(() => '')
+      return NextResponse.json(
+        { error: 'OPENAI_ERROR', detail: `${res.status}: ${body.slice(0, 200)}` },
+        { status: 502 }
+      )
+    }
 
     const data = await res.json()
     const raw = data?.choices?.[0]?.message?.content
@@ -68,7 +74,8 @@ export async function POST(req: NextRequest) {
     }
     if (!result.is_job_page) return NextResponse.json(EMPTY)
     return NextResponse.json(result)
-  } catch {
-    return NextResponse.json(EMPTY)
+  } catch (e) {
+    const detail = e instanceof Error ? e.message : String(e)
+    return NextResponse.json({ error: 'EXTRACTION_FAILED', detail }, { status: 500 })
   }
 }
