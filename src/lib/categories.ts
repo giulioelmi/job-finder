@@ -36,6 +36,14 @@ export const JOB_TYPES = [
 
 export type JobTypeId = (typeof JOB_TYPES)[number]['id']
 
+export const EXPERIENCE_LEVELS = [
+  { id: 'entry', label: 'Entry / New Grad' },
+  { id: 'mid', label: 'Mid-level' },
+  { id: 'senior', label: 'Senior+' },
+] as const
+
+export type ExperienceLevelOptionId = (typeof EXPERIENCE_LEVELS)[number]['id']
+
 // Full list of companies known to use Greenhouse, searched when "all companies" mode is on.
 // Slugs match boards.greenhouse.io/{slug}
 // Best-effort list of US tech companies that use Greenhouse.

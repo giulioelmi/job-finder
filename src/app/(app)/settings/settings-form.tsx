@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { JOB_TITLE_SUGGESTIONS, COMPANY_SUGGESTIONS, JOB_TYPES, JobTypeId } from '@/lib/categories'
+import { JOB_TITLE_SUGGESTIONS, COMPANY_SUGGESTIONS, JOB_TYPES, EXPERIENCE_LEVELS, JobTypeId, ExperienceLevelOptionId } from '@/lib/categories'
 import { UserSettings } from '@/lib/types'
 import { X, Search, Globe, Building2, Layers } from 'lucide-react'
 
@@ -16,6 +16,7 @@ interface SettingsFormProps {
 
 const DEFAULT_JOB_TITLES: string[] = ['Data Scientist', 'Data Analyst']
 const DEFAULT_JOB_TYPES: JobTypeId[] = ['internship', 'fulltime']
+const DEFAULT_EXPERIENCE_LEVELS: ExperienceLevelOptionId[] = ['entry', 'mid', 'senior']
 
 export function SettingsForm({ userId, userEmail, initialSettings }: SettingsFormProps) {
   const supabase = createClient()
@@ -33,6 +34,11 @@ export function SettingsForm({ userId, userEmail, initialSettings }: SettingsFor
     (initialSettings?.job_types?.length
       ? (initialSettings.job_types as JobTypeId[])
       : DEFAULT_JOB_TYPES)
+  )
+  const [experienceLevels, setExperienceLevels] = useState<ExperienceLevelOptionId[]>(
+    (initialSettings?.experience_levels?.length
+      ? (initialSettings.experience_levels as ExperienceLevelOptionId[])
+      : DEFAULT_EXPERIENCE_LEVELS)
   )
   const [emailNotifications, setEmailNotifications] = useState(initialSettings?.email_notifications ?? true)
   const [notificationEmail, setNotificationEmail] = useState(initialSettings?.notification_email ?? userEmail)
@@ -102,6 +108,12 @@ export function SettingsForm({ userId, userEmail, initialSettings }: SettingsFor
     )
   }
 
+  function toggleExperienceLevel(id: ExperienceLevelOptionId) {
+    setExperienceLevels(prev =>
+      prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]
+    )
+  }
+
   const canSave = searchAllCompanies || companies.length > 0
 
   async function handleSave() {
@@ -116,6 +128,7 @@ export function SettingsForm({ userId, userEmail, initialSettings }: SettingsFor
           companies,
           categories: jobTitles,
           job_types: jobTypes,
+          experience_levels: experienceLevels,
           email_notifications: emailNotifications,
           notification_email: notificationEmail || null,
         },
@@ -434,6 +447,40 @@ export function SettingsForm({ userId, userEmail, initialSettings }: SettingsFor
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader>
+          <CardTitle>Experience</CardTitle>
+          <p className="text-sm text-gray-500 mt-1">
+            Filters by seniority inferred from the job title.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-4 flex-wrap">
+            {EXPERIENCE_LEVELS.map(level => {
+              const checked = experienceLevels.includes(level.id)
+              return (
+                <label
+                  key={level.id}
+                  className={`flex items-center gap-3 px-5 py-3 rounded-lg border cursor-pointer transition-colors ${
+                    checked
+                      ? 'border-green-600 bg-green-50 text-green-800'
+                      : 'border-gray-200 hover:border-gray-300 text-gray-700'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleExperienceLevel(level.id)}
+                    className="w-4 h-4 text-green-700 rounded"
+                  />
+                  <span className="text-sm font-medium">{level.label}</span>
+                </label>
+              )
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Email Notifications */}
       <Card>
         <CardHeader>
@@ -468,7 +515,7 @@ export function SettingsForm({ userId, userEmail, initialSettings }: SettingsFor
       </Card>
 
       <div className="flex items-center gap-3">
-        <Button onClick={handleSave} disabled={saving || !canSave || jobTypes.length === 0} size="lg">
+        <Button onClick={handleSave} disabled={saving || !canSave || jobTypes.length === 0 || experienceLevels.length === 0} size="lg">
           {saving ? 'Saving...' : 'Save Settings'}
         </Button>
         {saved && <span className="text-sm text-green-600 font-medium">Saved!</span>}
@@ -478,6 +525,9 @@ export function SettingsForm({ userId, userEmail, initialSettings }: SettingsFor
         )}
         {canSave && jobTypes.length === 0 && (
           <span className="text-sm text-red-500">Select at least one job type.</span>
+        )}
+        {canSave && jobTypes.length > 0 && experienceLevels.length === 0 && (
+          <span className="text-sm text-red-500">Select at least one experience level.</span>
         )}
       </div>
     </div>

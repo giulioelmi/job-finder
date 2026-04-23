@@ -4,21 +4,8 @@ import { fetchGreenhouseJobs, GreenhouseJob } from '@/lib/greenhouse'
 import { fetchAshbyJobs, AshbyJob } from '@/lib/ashby'
 import { sendJobNotificationEmail } from '@/lib/email'
 import { ALL_GREENHOUSE_COMPANIES, ALL_ASHBY_COMPANIES } from '@/lib/categories'
-import { isInternshipTitle } from '@/lib/job-utils'
-
-// US state abbreviations for location matching
-const US_STATE_RE = /,\s*(al|ak|az|ar|ca|co|ct|de|fl|ga|hi|id|il|in|ia|ks|ky|la|me|md|ma|mi|mn|ms|mo|mt|ne|nv|nh|nj|nm|ny|nc|nd|oh|ok|or|pa|ri|sc|sd|tn|tx|ut|vt|va|wa|wv|wi|wy|dc)(\s|,|$)/i
-
-function isUSLocation(location: string | null | undefined): boolean {
-  if (!location) return true
-  const loc = location.toLowerCase()
-  if (loc.includes('united states')) return true
-  if (loc.includes('u.s.')) return true
-  if (loc.includes('usa')) return true
-  if (loc.includes('remote')) return true
-  if (US_STATE_RE.test(loc)) return true
-  return false
-}
+import { isUSLocation, matchesExperienceLevel, matchesJobType } from '@/lib/job-utils'
+import { scrapeExperienceYearsForJobs } from '@/lib/experience'
 
 type ScrapedJob = GreenhouseJob | AshbyJob
 
@@ -54,6 +41,7 @@ export async function POST(_req: NextRequest) {
   const userAshbyCompanies: string[] = searchAll ? [] : ((settings?.ashby_companies ?? []) as string[])
   const userKeywords: string[] = ((settings?.categories ?? []) as string[]).map((k: string) => k.toLowerCase())
   const userJobTypes: string[] = (settings?.job_types as string[] | null) ?? ['internship', 'fulltime']
+  const userExperienceLevels: string[] = (settings?.experience_levels as string[] | null) ?? []
 
   // Always scrape ALL companies — filtering happens after
   const [ghSlugs, ashbySlugs] = await Promise.all([
@@ -99,15 +87,32 @@ export async function POST(_req: NextRequest) {
     return NextResponse.json({ found: 0, new: 0, message: 'No jobs found in the last 14 days.' })
   }
 
+  const fetchedJobs = Array.from(allFetched.values())
+  const { data: existingJobs } = await serviceClient
+    .from('jobs')
+    .select('external_id, experience_years')
+    .in('external_id', fetchedJobs.map(j => j.external_id))
+
+  const existingExperience = new Map(
+    (existingJobs ?? []).map(j => [j.external_id as string, j.experience_years as number | null])
+  )
+
+  const jobsNeedingScrape = fetchedJobs
+    .filter(j => existingExperience.get(j.external_id) == null)
+    .map(j => ({ external_id: j.external_id, url: j.url }))
+
+  const scrapedExperience = await scrapeExperienceYearsForJobs(jobsNeedingScrape)
+
   // Upsert all fetched jobs to the central catalog
   await serviceClient.from('jobs').upsert(
-    Array.from(allFetched.values()).map(j => ({
+    fetchedJobs.map(j => ({
       external_id: j.external_id,
       title: j.title,
       company: j.company,
       location: j.location,
       url: j.url,
       posted_at: j.posted_at,
+      experience_years: existingExperience.get(j.external_id) ?? scrapedExperience.get(j.external_id) ?? null,
     })),
     { onConflict: 'external_id', ignoreDuplicates: false }
   )
@@ -139,11 +144,9 @@ export async function POST(_req: NextRequest) {
     const titleLower = j.title.toLowerCase()
     if (userKeywords.length > 0 && !userKeywords.some(kw => titleLower.includes(kw))) return false
 
-    const isIntern = isInternshipTitle(j.title)
-    const wantIntern = userJobTypes.includes('internship')
-    const wantFull = userJobTypes.includes('fulltime')
-    if (wantIntern && !wantFull && !isIntern) return false
-    if (wantFull && !wantIntern && isIntern) return false
+    if (!matchesJobType(j.title, userJobTypes)) return false
+
+    if (!matchesExperienceLevel(j.title, userExperienceLevels)) return false
 
     if (!isUSLocation(j.location)) return false
 

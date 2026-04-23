@@ -6,6 +6,7 @@ export interface UserSettings {
   ashby_companies: string[]  // Ashby slugs
   categories: string[]
   job_types: string[]
+  experience_levels: string[]
   location: string
   email_notifications: boolean
   notification_email: string | null
@@ -21,6 +22,7 @@ export interface Job {
   location: string | null
   url: string
   posted_at: string | null
+  experience_years: number | null
   found_at: string
   description: string | null
 }

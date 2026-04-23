@@ -1,6 +1,6 @@
 import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase/server'
-import { isInternshipTitle } from '@/lib/job-utils'
+import { isUSLocation, matchesExperienceLevel, matchesJobType } from '@/lib/job-utils'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { JobListClient } from './job-list-client'
@@ -22,7 +22,7 @@ export default async function JobsPage({
   // Fetch current user settings to apply as display filters
   const { data: settings } = await supabase
     .from('user_settings')
-    .select('search_all_companies, companies, ashby_companies, categories, job_types')
+    .select('search_all_companies, companies, ashby_companies, categories, job_types, experience_levels')
     .eq('user_id', user!.id)
     .single()
 
@@ -31,18 +31,7 @@ export default async function JobsPage({
   const userAshbyCompanies: string[] = searchAll ? [] : ((settings?.ashby_companies ?? []) as string[]).map((c: string) => c.toLowerCase())
   const userKeywords: string[] = ((settings?.categories ?? []) as string[]).map((k: string) => k.toLowerCase())
   const userJobTypes: string[] = (settings?.job_types as string[] | null) ?? ['internship', 'fulltime']
-
-  const US_STATE_RE = /,\s*(al|ak|az|ar|ca|co|ct|de|fl|ga|hi|id|il|in|ia|ks|ky|la|me|md|ma|mi|mn|ms|mo|mt|ne|nv|nh|nj|nm|ny|nc|nd|oh|ok|or|pa|ri|sc|sd|tn|tx|ut|vt|va|wa|wv|wi|wy|dc)(\s|,|$)/i
-  function isUSLocation(location: string | null | undefined): boolean {
-    if (!location) return true
-    const loc = location.toLowerCase()
-    if (loc.includes('united states')) return true
-    if (loc.includes('u.s.')) return true
-    if (loc.includes('usa')) return true
-    if (loc.includes('remote')) return true
-    if (US_STATE_RE.test(loc)) return true
-    return false
-  }
+  const userExperienceLevels: string[] = (settings?.experience_levels as string[] | null) ?? []
 
   // Query the jobs catalog directly — all jobs found in the last 7 days
   const sevenDaysCutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
@@ -96,11 +85,9 @@ export default async function JobsPage({
       }
 
       // Job type filter
-      const isIntern = isInternshipTitle(job.title ?? '')
-      const wantIntern = userJobTypes.includes('internship')
-      const wantFull = userJobTypes.includes('fulltime')
-      if (wantIntern && !wantFull && !isIntern) return false
-      if (wantFull && !wantIntern && isIntern) return false
+      if (!matchesJobType(job.title ?? '', userJobTypes)) return false
+
+      if (!matchesExperienceLevel(job.title ?? '', userExperienceLevels)) return false
 
       // US location filter
       if (!isUSLocation(job.location)) return false

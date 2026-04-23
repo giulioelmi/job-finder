@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { isInternshipTitle } from '@/lib/job-utils'
+import { matchesExperienceLevel, matchesJobType } from '@/lib/job-utils'
 import { NetworkingClient } from './networking-client'
 import { Job, NetworkingContact } from '@/lib/types'
 
@@ -17,12 +17,13 @@ export default async function NetworkingPage() {
   // Fetch user settings for job filtering
   const { data: settings } = await supabase
     .from('user_settings')
-    .select('categories, job_types')
+    .select('categories, job_types, experience_levels')
     .eq('user_id', user!.id)
     .single()
 
   const userKeywords: string[] = ((settings?.categories ?? []) as string[]).map((k: string) => k.toLowerCase())
   const userJobTypes: string[] = (settings?.job_types as string[] | null) ?? ['internship', 'fulltime']
+  const userExperienceLevels: string[] = (settings?.experience_levels as string[] | null) ?? []
 
   // Get unique contact companies (lowercase)
   const contactCompanies = [...new Set(
@@ -50,11 +51,8 @@ export default async function NetworkingPage() {
     const filteredJobs = ((jobsData ?? []) as Job[]).filter(job => {
       const titleLower = (job.title ?? '').toLowerCase()
       if (userKeywords.length > 0 && !userKeywords.some(kw => titleLower.includes(kw))) return false
-      const isIntern = isInternshipTitle(job.title ?? '')
-      const wantIntern = userJobTypes.includes('internship')
-      const wantFull = userJobTypes.includes('fulltime')
-      if (wantIntern && !wantFull && !isIntern) return false
-      if (wantFull && !wantIntern && isIntern) return false
+      if (!matchesJobType(job.title ?? '', userJobTypes)) return false
+      if (!matchesExperienceLevel(job.title ?? '', userExperienceLevels)) return false
       return true
     })
 

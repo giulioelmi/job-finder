@@ -10,6 +10,7 @@ create table if not exists user_settings (
   ashby_companies text[] default array[]::text[],
   categories text[] default array['Data Scientist', 'Data Analyst'],
   job_types text[] default array['internship', 'fulltime'],
+  experience_levels text[] default array[]::text[],
   location text default '',
   email_notifications boolean default true,
   notification_email text,
@@ -26,6 +27,7 @@ create table if not exists jobs (
   location text,
   url text not null,
   posted_at timestamptz,
+  experience_years int,
   found_at timestamptz default now(),
   description text
 );
