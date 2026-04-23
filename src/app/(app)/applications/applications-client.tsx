@@ -3,11 +3,10 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { getStatusColor } from '@/lib/utils'
 import { Application, ApplicationStatus } from '@/lib/types'
-import { ExternalLink, MapPin, ChevronDown, Briefcase, Plus, X, Trash2 } from 'lucide-react'
+import { ExternalLink, MapPin, ChevronDown, Briefcase, Plus, X, Trash2, Pencil } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 
 const STATUSES: ApplicationStatus[] = ['applied', 'interview', 'offer', 'rejected']
@@ -22,6 +21,7 @@ export function ApplicationsClient({ applications: initial, userId }: Applicatio
   const [applications, setApplications] = useState(initial)
   const [filterStatus, setFilterStatus] = useState<ApplicationStatus | 'all'>('all')
   const [showAddModal, setShowAddModal] = useState(false)
+  const [editingApplication, setEditingApplication] = useState<Application | null>(null)
 
   async function updateStatus(appId: string, status: ApplicationStatus) {
     await supabase.from('applications').update({ status }).eq('id', appId)
@@ -37,6 +37,29 @@ export function ApplicationsClient({ applications: initial, userId }: Applicatio
     if (!window.confirm('Delete this application? This cannot be undone.')) return
     await supabase.from('applications').delete().eq('id', appId).eq('user_id', userId)
     setApplications(prev => prev.filter(a => a.id !== appId))
+  }
+
+  async function updateApplicationDetails(appId: string, data: {
+    title: string
+    company: string
+    location: string
+    url: string
+    status: ApplicationStatus
+  }): Promise<string | null> {
+    const payload = {
+      title: data.title.trim(),
+      company: data.company.trim() || null,
+      location: data.location.trim() || null,
+      url: data.url.trim() || null,
+      status: data.status,
+    }
+    const { error } = await supabase.from('applications').update(payload).eq('id', appId).eq('user_id', userId)
+    if (error) return error.message
+    setApplications(prev =>
+      prev.map(a => a.id === appId ? { ...a, ...payload, updated_at: new Date().toISOString() } : a)
+    )
+    setEditingApplication(null)
+    return null
   }
 
   async function handleAddManual(data: {
@@ -112,10 +135,10 @@ export function ApplicationsClient({ applications: initial, userId }: Applicatio
         <div className="space-y-3">
           {filtered.map(app => {
             const job = app.jobs as { title: string; company: string | null; location: string | null; url: string; posted_at: string | null; found_at: string } | null
-            const title    = job?.title    ?? app.title    ?? 'Unknown'
-            const company  = job?.company  ?? app.company  ?? null
-            const location = job?.location ?? app.location ?? null
-            const url      = job?.url      ?? app.url      ?? null
+            const title    = app.title    ?? job?.title    ?? 'Unknown'
+            const company  = app.company  ?? job?.company  ?? null
+            const location = app.location ?? job?.location ?? null
+            const url      = app.url      ?? job?.url      ?? null
             const dateSource = job?.posted_at ?? job?.found_at ?? app.applied_at
             return (
               <Card key={app.id}>
@@ -158,6 +181,13 @@ export function ApplicationsClient({ applications: initial, userId }: Applicatio
                     </div>
                     {/* Actions */}
                     <div className="flex items-center gap-2 flex-shrink-0">
+                      <button
+                        onClick={() => setEditingApplication(app)}
+                        className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                        title="Edit application details"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
                       <div className="relative">
                         <select
                           value={app.status}
@@ -188,6 +218,14 @@ export function ApplicationsClient({ applications: initial, userId }: Applicatio
 
       {showAddModal && (
         <AddJobModal onClose={() => setShowAddModal(false)} onAdd={handleAddManual} />
+      )}
+
+      {editingApplication && (
+        <EditJobModal
+          application={editingApplication}
+          onClose={() => setEditingApplication(null)}
+          onSave={data => updateApplicationDetails(editingApplication.id, data)}
+        />
       )}
     </div>
   )
@@ -320,6 +358,109 @@ function AddJobModal({
           <div className="flex gap-3 pt-2">
             <Button type="submit" disabled={saving || !title.trim()} className="flex-1">
               {saving ? 'Saving...' : 'Add Application'}
+            </Button>
+            <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+function EditJobModal({
+  application,
+  onClose,
+  onSave,
+}: {
+  application: Application
+  onClose: () => void
+  onSave: (data: { title: string; company: string; location: string; url: string; status: ApplicationStatus }) => Promise<string | null>
+}) {
+  const job = application.jobs as { title: string; company: string | null; location: string | null; url: string } | null
+  const [title, setTitle] = useState(application.title ?? job?.title ?? '')
+  const [company, setCompany] = useState(application.company ?? job?.company ?? '')
+  const [location, setLocation] = useState(application.location ?? job?.location ?? '')
+  const [url, setUrl] = useState(application.url ?? job?.url ?? '')
+  const [status, setStatus] = useState<ApplicationStatus>(application.status)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!title.trim()) return
+    setSaving(true)
+    setError(null)
+    const err = await onSave({ title: title.trim(), company: company.trim(), location: location.trim(), url: url.trim(), status })
+    setSaving(false)
+    if (err) setError(err)
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <h2 className="text-lg font-semibold text-gray-900">Edit Application</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Job Title *</label>
+            <input
+              type="text"
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              required
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-600 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Company</label>
+            <input
+              type="text"
+              value={company}
+              onChange={e => setCompany(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-600 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+            <input
+              type="text"
+              value={location}
+              onChange={e => setLocation(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-600 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Job URL</label>
+            <input
+              type="url"
+              value={url}
+              onChange={e => setUrl(e.target.value)}
+              placeholder="https://..."
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-600 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+            <select
+              value={status}
+              onChange={e => setStatus(e.target.value as ApplicationStatus)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-600 text-sm bg-white"
+            >
+              {STATUSES.map(s => (
+                <option key={s} value={s} className="capitalize">{s}</option>
+              ))}
+            </select>
+          </div>
+          {error && (
+            <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
+          )}
+          <div className="flex gap-3 pt-2">
+            <Button type="submit" disabled={saving || !title.trim()} className="flex-1">
+              {saving ? 'Saving...' : 'Save Changes'}
             </Button>
             <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
           </div>
