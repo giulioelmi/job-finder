@@ -22,6 +22,7 @@ export interface Job {
   location: string | null
   url: string
   posted_at: string | null
+  experience_years: number | null
   found_at: string
   description: string | null
 }

@@ -27,6 +27,7 @@ create table if not exists jobs (
   location text,
   url text not null,
   posted_at timestamptz,
+  experience_years int,
   found_at timestamptz default now(),
   description text
 );

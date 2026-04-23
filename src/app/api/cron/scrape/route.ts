@@ -5,6 +5,7 @@ import { fetchAshbyJobs, AshbyJob } from '@/lib/ashby'
 import { sendJobNotificationEmail } from '@/lib/email'
 import { ALL_GREENHOUSE_COMPANIES, ALL_ASHBY_COMPANIES } from '@/lib/categories'
 import { isUSLocation, matchesExperienceLevel, matchesJobType } from '@/lib/job-utils'
+import { scrapeExperienceYearsForJobs } from '@/lib/experience'
 
 type ScrapedJob = GreenhouseJob | AshbyJob
 
@@ -70,15 +71,32 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ success: true, fetched: 0, companiesChecked: ghSlugs.length + ashbySlugs.length, message: 'No new jobs in the last 30 minutes.' })
   }
 
+  const fetchedJobs = Array.from(allFetched.values())
+  const { data: existingJobs } = await supabase
+    .from('jobs')
+    .select('external_id, experience_years')
+    .in('external_id', fetchedJobs.map(j => j.external_id))
+
+  const existingExperience = new Map(
+    (existingJobs ?? []).map(j => [j.external_id as string, j.experience_years as number | null])
+  )
+
+  const jobsNeedingScrape = fetchedJobs
+    .filter(j => existingExperience.get(j.external_id) == null)
+    .map(j => ({ external_id: j.external_id, url: j.url }))
+
+  const scrapedExperience = await scrapeExperienceYearsForJobs(jobsNeedingScrape)
+
   // Upsert all fetched jobs into the central catalog
   await supabase.from('jobs').upsert(
-    Array.from(allFetched.values()).map(j => ({
+    fetchedJobs.map(j => ({
       external_id: j.external_id,
       title: j.title,
       company: j.company,
       location: j.location,
       url: j.url,
       posted_at: j.posted_at,
+      experience_years: existingExperience.get(j.external_id) ?? scrapedExperience.get(j.external_id) ?? null,
     })),
     { onConflict: 'external_id', ignoreDuplicates: false }
   )
