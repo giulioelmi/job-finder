@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Bamboo Job Tracker",
-  "version": "1.0.0",
+  "version": "1.1.1",
   "description": "Track job applications directly from any company website or ATS. One click to save the role, company, and URL to your Bamboo dashboard.",
 
   "icons": {
@@ -12,8 +12,11 @@
 
   "homepage_url": "https://www.jobbamboo.com",
 
-  "permissions": ["storage", "activeTab"],
-  "host_permissions": ["https://*/*", "http://*/*"],
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://tlbbsffehzmoqyrfotau.supabase.co/*",
+    "https://www.jobbamboo.com/*"
+  ],
 
   "action": {
     "default_popup": "popup.html",
