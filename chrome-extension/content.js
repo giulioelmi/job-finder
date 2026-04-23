@@ -227,7 +227,7 @@
 
   // ─── Job info extraction (LLM-driven) ──────────────────────────────────────
 
-  const EXTRACT_TTL_MS = 2 * 60 * 60 * 1000
+  const EXTRACT_TTL_MS = 30 * 60 * 1000
 
   // JSON-LD fast path — covers Greenhouse, Ashby, Lever and most modern ATSes.
   function extractFromJsonLd() {
