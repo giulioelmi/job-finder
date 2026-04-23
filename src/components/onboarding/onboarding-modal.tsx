@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { JOB_TITLE_SUGGESTIONS, COMPANY_SUGGESTIONS, JOB_TYPES, JobTypeId } from '@/lib/categories'
+import { JOB_TITLE_SUGGESTIONS, COMPANY_SUGGESTIONS, JOB_TYPES, EXPERIENCE_LEVELS, JobTypeId, ExperienceLevelOptionId } from '@/lib/categories'
 import { X, Search, Globe, Building2, Layers, Bell, Briefcase, Users, ChevronRight } from 'lucide-react'
 
 interface OnboardingModalProps {
@@ -12,6 +12,7 @@ interface OnboardingModalProps {
 
 const DEFAULT_JOB_TITLES: string[] = ['Data Scientist', 'Data Analyst']
 const DEFAULT_JOB_TYPES: JobTypeId[] = ['internship', 'fulltime']
+const DEFAULT_EXPERIENCE_LEVELS: ExperienceLevelOptionId[] = ['entry', 'mid', 'senior']
 
 export function OnboardingModal({ userId, userEmail }: OnboardingModalProps) {
   const supabase = createClient()
@@ -23,6 +24,7 @@ export function OnboardingModal({ userId, userEmail }: OnboardingModalProps) {
   const [companies, setCompanies] = useState<string[]>([])
   const [jobTitles, setJobTitles] = useState<string[]>(DEFAULT_JOB_TITLES)
   const [jobTypes, setJobTypes] = useState<JobTypeId[]>(DEFAULT_JOB_TYPES)
+  const [experienceLevels, setExperienceLevels] = useState<ExperienceLevelOptionId[]>(DEFAULT_EXPERIENCE_LEVELS)
   const [emailNotifications, setEmailNotifications] = useState(true)
   const [notificationEmail, setNotificationEmail] = useState(userEmail)
 
@@ -91,6 +93,12 @@ export function OnboardingModal({ userId, userEmail }: OnboardingModalProps) {
     )
   }
 
+  function toggleExperienceLevel(id: ExperienceLevelOptionId) {
+    setExperienceLevels(prev =>
+      prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]
+    )
+  }
+
   const canSave = searchAllCompanies || companies.length > 0
 
   async function handleSaveAndNext() {
@@ -105,6 +113,7 @@ export function OnboardingModal({ userId, userEmail }: OnboardingModalProps) {
           companies,
           categories: jobTitles,
           job_types: jobTypes,
+          experience_levels: experienceLevels,
           email_notifications: emailNotifications,
           notification_email: notificationEmail || null,
         },
@@ -351,6 +360,22 @@ export function OnboardingModal({ userId, userEmail }: OnboardingModalProps) {
                 </div>
               </div>
 
+              <div className="space-y-2">
+                <label className="block text-sm font-semibold text-gray-800">Experience</label>
+                <p className="text-xs text-gray-500">Inferred from job title keywords like junior, senior, staff, etc.</p>
+                <div className="flex gap-3 flex-wrap">
+                  {EXPERIENCE_LEVELS.map(level => {
+                    const checked = experienceLevels.includes(level.id)
+                    return (
+                      <label key={level.id} className={`flex items-center gap-2.5 px-4 py-2.5 rounded-lg border cursor-pointer transition-colors ${checked ? 'border-green-600 bg-green-50 text-green-800' : 'border-gray-200 hover:border-gray-300 text-gray-700'}`}>
+                        <input type="checkbox" checked={checked} onChange={() => toggleExperienceLevel(level.id)} className="w-4 h-4 text-green-700 rounded" />
+                        <span className="text-sm font-medium">{level.label}</span>
+                      </label>
+                    )
+                  })}
+                </div>
+              </div>
+
               {/* Email Notifications */}
               <div className="space-y-2">
                 <label className="block text-sm font-semibold text-gray-800">Email Notifications</label>
@@ -431,10 +456,11 @@ export function OnboardingModal({ userId, userEmail }: OnboardingModalProps) {
                 {saveError && <span className="text-red-500">{saveError}</span>}
                 {!canSave && <span className="text-amber-600 text-xs">Add a company or select &ldquo;All companies&rdquo; to continue.</span>}
                 {canSave && jobTypes.length === 0 && <span className="text-amber-600 text-xs">Select at least one job type.</span>}
+                {canSave && jobTypes.length > 0 && experienceLevels.length === 0 && <span className="text-amber-600 text-xs">Select at least one experience level.</span>}
               </div>
               <button
                 onClick={handleSaveAndNext}
-                disabled={saving || !canSave || jobTypes.length === 0}
+                disabled={saving || !canSave || jobTypes.length === 0 || experienceLevels.length === 0}
                 className="inline-flex items-center gap-2 px-5 py-2.5 bg-green-700 text-white text-sm font-semibold rounded-lg hover:bg-green-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {saving ? 'Saving...' : 'Save & Next'}

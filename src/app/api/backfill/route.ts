@@ -1,29 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
-
-// US state abbreviations for location matching
-const US_STATE_RE = /,\s*(al|ak|az|ar|ca|co|ct|de|fl|ga|hi|id|il|in|ia|ks|ky|la|me|md|ma|mi|mn|ms|mo|mt|ne|nv|nh|nj|nm|ny|nc|nd|oh|ok|or|pa|ri|sc|sd|tn|tx|ut|vt|va|wa|wv|wi|wy|dc)(\s|,|$)/i
-
-function isUSLocation(location: string | null | undefined): boolean {
-  if (!location) return true
-  const loc = location.toLowerCase()
-  if (loc.includes('united states')) return true
-  if (loc.includes('u.s.')) return true
-  if (loc.includes('usa')) return true
-  if (loc.includes('remote')) return true
-  if (US_STATE_RE.test(loc)) return true
-  return false
-}
-
-function matchesJobType(title: string, jobTypes: string[]): boolean {
-  if (jobTypes.length === 0 || (jobTypes.includes('internship') && jobTypes.includes('fulltime'))) {
-    return true
-  }
-  const isIntern = title.toLowerCase().includes('intern')
-  if (jobTypes.includes('internship') && !jobTypes.includes('fulltime')) return isIntern
-  if (jobTypes.includes('fulltime') && !jobTypes.includes('internship')) return !isIntern
-  return true
-}
+import { isUSLocation, matchesExperienceLevel, matchesJobType } from '@/lib/job-utils'
 
 // Backfills job_notifications from jobs already in the local DB.
 // Useful when settings change or jobs were missed by the cron.
@@ -45,6 +22,7 @@ export async function POST() {
   const userAshbyCompanies: string[] = (settings?.ashby_companies ?? []).map((c: string) => c.toLowerCase())
   const keywords: string[] = ((settings?.categories ?? []) as string[]).map((k: string) => k.toLowerCase())
   const jobTypes: string[] = settings?.job_types ?? ['internship', 'fulltime']
+  const experienceLevels: string[] = settings?.experience_levels ?? []
 
   // Fetch jobs found in the last 7 days from the local DB
   const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
@@ -86,6 +64,9 @@ export async function POST() {
 
     // Job type filter
     if (!matchesJobType(job.title, jobTypes)) return false
+
+    // Experience filter
+    if (!matchesExperienceLevel(job.title, experienceLevels)) return false
 
     return true
   })
