@@ -1,7 +1,6 @@
 'use client'
 
-import { useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { useMemo, useState } from 'react'
 import { Chrome, ExternalLink } from 'lucide-react'
 
 interface ExtensionInstallModalProps {
@@ -11,28 +10,18 @@ interface ExtensionInstallModalProps {
 const EXTENSION_URL = 'https://chromewebstore.google.com/detail/bamboo-job-tracker/igkaoppnjcalejkpipllpjgikgghhbmj'
 
 export function ExtensionInstallModal({ userId }: ExtensionInstallModalProps) {
-  const supabase = createClient()
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const storageKey = useMemo(() => `extension_install_prompt_seen_${userId}`, [userId])
+  const [dismissed, setDismissed] = useState(false)
 
-  async function handleInstalled() {
-    setSaving(true)
-    setError(null)
+  const hasSeenPrompt = typeof window !== 'undefined' && window.localStorage.getItem(storageKey) === 'true'
+  const isVisible = !dismissed && !hasSeenPrompt
 
-    const { error: updateError } = await supabase
-      .from('user_settings')
-      .update({ extension_prompt_seen: true })
-      .eq('user_id', userId)
-
-    setSaving(false)
-
-    if (updateError) {
-      setError(updateError.message)
-      return
-    }
-
-    window.location.reload()
+  function handleInstalled() {
+    window.localStorage.setItem(storageKey, 'true')
+    setDismissed(true)
   }
+
+  if (!isVisible) return null
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
@@ -55,10 +44,6 @@ export function ExtensionInstallModal({ userId }: ExtensionInstallModalProps) {
           This popup only appears once after login.
         </div>
 
-        {error && (
-          <p className="mt-3 text-sm text-red-600">Unable to save confirmation: {error}</p>
-        )}
-
         <div className="mt-5 flex flex-col sm:flex-row gap-2">
           <a
             href={EXTENSION_URL}
@@ -73,10 +58,9 @@ export function ExtensionInstallModal({ userId }: ExtensionInstallModalProps) {
           <button
             type="button"
             onClick={handleInstalled}
-            disabled={saving}
-            className="inline-flex items-center justify-center rounded-lg font-medium px-4 py-2 text-sm bg-gray-100 text-gray-800 hover:bg-gray-200 disabled:opacity-50 disabled:pointer-events-none transition-colors"
+            className="inline-flex items-center justify-center rounded-lg font-medium px-4 py-2 text-sm bg-gray-100 text-gray-800 hover:bg-gray-200 transition-colors"
           >
-            {saving ? 'Saving...' : "I've added the extension"}
+            I&apos;ve added the extension
           </button>
         </div>
       </div>

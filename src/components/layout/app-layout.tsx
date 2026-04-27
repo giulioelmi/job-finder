@@ -11,17 +11,14 @@ interface AppLayoutProps {
   userEmail?: string
   notificationCount?: number
   userId?: string
-  showExtensionInstallModal?: boolean
 }
 
-export function AppLayout({ children, userEmail, notificationCount = 0, userId, showExtensionInstallModal = false }: AppLayoutProps) {
+export function AppLayout({ children, userEmail, notificationCount = 0, userId }: AppLayoutProps) {
   const [open, setOpen] = useState(false)
 
   return (
     <div className="flex min-h-screen bg-[#f7faf8]">
-      {showExtensionInstallModal && userId && (
-        <ExtensionInstallModal userId={userId} />
-      )}
+      {userId && <ExtensionInstallModal userId={userId} />}
 
       {/* Desktop sidebar — always visible on lg+ */}
       <div className="hidden lg:block flex-shrink-0">

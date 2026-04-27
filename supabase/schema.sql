@@ -14,7 +14,6 @@ create table if not exists user_settings (
   location text default '',
   email_notifications boolean default true,
   notification_email text,
-  extension_prompt_seen boolean default false,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
