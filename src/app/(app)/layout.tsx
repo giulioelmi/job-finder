@@ -20,11 +20,12 @@ export default async function Layout({ children }: { children: React.ReactNode }
   // Detect first-time users: no settings row means they haven't completed onboarding
   const { data: settings } = await supabase
     .from('user_settings')
-    .select('id')
+    .select('id, extension_prompt_seen')
     .eq('user_id', user.id)
     .maybeSingle()
 
   const isNewUser = !settings
+  const showExtensionInstallModal = !isNewUser && !settings?.extension_prompt_seen
 
   return (
     <AppLayout
@@ -32,6 +33,7 @@ export default async function Layout({ children }: { children: React.ReactNode }
       notificationCount={notificationCount ?? 0}
       isNewUser={isNewUser}
       userId={user.id}
+      showExtensionInstallModal={showExtensionInstallModal}
     >
       {children}
     </AppLayout>

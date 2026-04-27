@@ -10,6 +10,7 @@ export interface UserSettings {
   location: string
   email_notifications: boolean
   notification_email: string | null
+  extension_prompt_seen: boolean
   created_at: string
   updated_at: string
 }

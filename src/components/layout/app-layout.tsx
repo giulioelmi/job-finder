@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { Sidebar } from './sidebar'
 import { OnboardingModal } from '@/components/onboarding/onboarding-modal'
+import { ExtensionInstallModal } from '@/components/onboarding/extension-install-modal'
 import { Menu, Leaf, Bell } from 'lucide-react'
 
 interface AppLayoutProps {
@@ -12,15 +13,20 @@ interface AppLayoutProps {
   notificationCount?: number
   isNewUser?: boolean
   userId?: string
+  showExtensionInstallModal?: boolean
 }
 
-export function AppLayout({ children, userEmail, notificationCount = 0, isNewUser = false, userId }: AppLayoutProps) {
+export function AppLayout({ children, userEmail, notificationCount = 0, isNewUser = false, userId, showExtensionInstallModal = false }: AppLayoutProps) {
   const [open, setOpen] = useState(false)
 
   return (
     <div className="flex min-h-screen bg-[#f7faf8]">
       {isNewUser && userId && userEmail && (
         <OnboardingModal userId={userId} userEmail={userEmail} />
+      )}
+
+      {!isNewUser && showExtensionInstallModal && userId && (
+        <ExtensionInstallModal userId={userId} />
       )}
 
       {/* Desktop sidebar — always visible on lg+ */}
