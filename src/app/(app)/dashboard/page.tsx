@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge'
 import { getStatusColor } from '@/lib/utils'
 import { Briefcase, Bell, TrendingUp, Clock } from 'lucide-react'
 import Link from 'next/link'
+import ApplicationFlowDiagram from '@/components/dashboard/application-flow-diagram'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -47,6 +48,7 @@ export default async function DashboardPage() {
     interview: applications.filter(a => a.status === 'interview').length,
     offer: applications.filter(a => a.status === 'offer').length,
     rejected: applications.filter(a => a.status === 'rejected').length,
+    saved: applications.filter(a => a.status === 'saved').length,
   }
 
   const stats = [
@@ -131,14 +133,22 @@ export default async function DashboardPage() {
         </CardContent>
       </Card>
 
-      {/* Pipeline breakdown */}
+      {/* Application flow diagram */}
       {applications.length > 0 && (
         <Card className="mt-6">
           <CardHeader>
-            <CardTitle>Status Breakdown</CardTitle>
+            <CardTitle>Application Pipeline</CardTitle>
+            <p className="text-sm text-gray-500 mt-0.5">How your applications are progressing</p>
           </CardHeader>
-          <CardContent>
-            <div className="flex gap-4 flex-wrap">
+          <CardContent className="pt-2">
+            <ApplicationFlowDiagram
+              total={applications.length}
+              interview={statusCounts.interview}
+              offer={statusCounts.offer}
+              rejected={statusCounts.rejected}
+              noResponse={statusCounts.applied + statusCounts.saved}
+            />
+            <div className="flex gap-4 flex-wrap mt-4 pt-4 border-t border-gray-100">
               {Object.entries(statusCounts).map(([status, count]) => (
                 <div key={status} className="flex items-center gap-2">
                   <Badge className={getStatusColor(status)}>{status}</Badge>
