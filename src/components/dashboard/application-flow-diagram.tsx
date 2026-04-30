@@ -17,60 +17,71 @@ type LayoutNode = {
   h: number
 }
 
-const W = 580
-const H = 260
-const NODE_W = 16
+const NODE_W = 10
 const GAP = 10
-const PAD_Y = 20
-const USABLE_H = H - PAD_Y * 2
-const COL_X = [100, 270, 440]
+const PAD_Y = 18
 
 function layoutNodes(
   nodes: Omit<LayoutNode, 'y' | 'h'>[],
   scaleTotal: number,
   gap: number,
-  startY = PAD_Y,
-  containerH = USABLE_H,
+  startY: number,
+  containerH: number,
 ): LayoutNode[] {
   const vis = nodes.filter(n => n.value > 0)
   const totalGap = (vis.length - 1) * gap
   const availH = containerH - totalGap
   let y = startY
   return vis.map(n => {
-    const h = Math.max(8, (n.value / scaleTotal) * availH)
+    const h = Math.max(10, (n.value / scaleTotal) * availH)
     const node = { ...n, y, h }
     y += h + gap
     return node
   })
 }
 
-function bezierPath(x1: number, y1t: number, y1b: number, x2: number, y2t: number, y2b: number): string {
+function bezierPath(
+  x1: number, y1t: number, y1b: number,
+  x2: number, y2t: number, y2b: number,
+): string {
   const cx = (x1 + x2) / 2
-  return `M${x1},${y1t} C${cx},${y1t} ${cx},${y2t} ${x2},${y2t} L${x2},${y2b} C${cx},${y2b} ${cx},${y1b} ${x1},${y1b} Z`
+  return (
+    `M${x1},${y1t} C${cx},${y1t} ${cx},${y2t} ${x2},${y2t} ` +
+    `L${x2},${y2b} C${cx},${y2b} ${cx},${y1b} ${x1},${y1b} Z`
+  )
 }
 
 export default function ApplicationFlowDiagram({ total, interview, offer, rejected, noResponse }: Props) {
   if (total === 0) return null
 
   const inPipeline = interview + offer
+  const hasPipeline = inPipeline > 0
+
+  const W = 580
+  const H = 180
+  const USABLE_H = H - PAD_Y * 2
+
+  // Wider gap between columns when only 2 cols → gentler S-curves
+  const COL_X = hasPipeline ? [70, 255, 455] : [70, 400]
 
   const col0 = layoutNodes(
     [{ id: 'total', label: 'Applied', value: total, color: '#16a34a' }],
-    total, GAP,
+    total, GAP, PAD_Y, USABLE_H,
   )
 
+  // Order: pipeline (top, positive), rejected (middle), no-response (bottom)
   const col1 = layoutNodes(
     [
       { id: 'pipeline', label: 'In Pipeline', value: inPipeline, color: '#d97706' },
       { id: 'rejected', label: 'Rejected', value: rejected, color: '#dc2626' },
       { id: 'noresponse', label: 'No Response', value: noResponse, color: '#9ca3af' },
     ],
-    total, GAP,
+    total, GAP, PAD_Y, USABLE_H,
   )
 
   const pipelineNode = col1.find(n => n.id === 'pipeline')
 
-  const col2 = pipelineNode && inPipeline > 0
+  const col2 = pipelineNode && hasPipeline
     ? layoutNodes(
         [
           { id: 'offer', label: 'Offer', value: offer, color: '#15803d' },
@@ -109,14 +120,16 @@ export default function ApplicationFlowDiagram({ total, interview, offer, reject
     }
   }
 
-  const allCols = [col0, col1, col2]
+  const allCols = [col0, col1, ...(hasPipeline ? [col2] : [])]
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto">
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" style={{ maxHeight: H }}>
+      {/* Ribbon links (behind nodes) */}
       {links.map(link => (
-        <path key={link.key} d={link.d} fill={link.color} opacity={0.25} />
+        <path key={link.key} d={link.d} fill={link.color} opacity={0.22} />
       ))}
 
+      {/* Node bars */}
       {allCols.map((col, ci) =>
         col.map(node => (
           <rect
@@ -131,11 +144,11 @@ export default function ApplicationFlowDiagram({ total, interview, offer, reject
         )),
       )}
 
-      {/* Col 0: label on the left */}
+      {/* Col 0: label to the left */}
       {col0.map(node => (
         <text
           key={node.id}
-          x={COL_X[0] - 8}
+          x={COL_X[0] - 10}
           y={node.y + node.h / 2}
           textAnchor="end"
           dominantBaseline="middle"
@@ -147,7 +160,7 @@ export default function ApplicationFlowDiagram({ total, interview, offer, reject
         </text>
       ))}
 
-      {/* Col 1: labels on the right */}
+      {/* Col 1 labels: to the right */}
       {col1.map(node => (
         <text
           key={node.id}
@@ -162,7 +175,7 @@ export default function ApplicationFlowDiagram({ total, interview, offer, reject
         </text>
       ))}
 
-      {/* Col 2: labels on the right */}
+      {/* Col 2 labels: to the right */}
       {col2.map(node => (
         <text
           key={node.id}
