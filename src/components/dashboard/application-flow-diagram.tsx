@@ -13,11 +13,12 @@ type LayoutNode = {
   label: string
   value: number
   color: string
+  linkOpacity: number
   y: number
   h: number
 }
 
-const NODE_W = 10
+const NODE_W = 12
 const GAP = 10
 const PAD_Y = 18
 
@@ -51,86 +52,59 @@ function bezierPath(
   )
 }
 
+const TWO_LINE_H = 24
+
 export default function ApplicationFlowDiagram({ total, interview, offer, rejected, noResponse }: Props) {
   if (total === 0) return null
 
-  const inPipeline = interview + offer
-  const hasPipeline = inPipeline > 0
-
   const W = 580
-  const H = 180
+  const H = 188
   const USABLE_H = H - PAD_Y * 2
-
-  // Wider gap between columns when only 2 cols → gentler S-curves
-  const COL_X = hasPipeline ? [70, 255, 455] : [70, 400]
+  const COL_X = [95, 390]
 
   const col0 = layoutNodes(
-    [{ id: 'total', label: 'Applied', value: total, color: '#16a34a' }],
+    [{ id: 'total', label: 'Applied', value: total, color: '#16a34a', linkOpacity: 1 }],
     total, GAP, PAD_Y, USABLE_H,
   )
 
-  // Order: pipeline (top, positive), rejected (middle), no-response (bottom)
+  // Positive outcomes at top, rejections next, no response at bottom
   const col1 = layoutNodes(
     [
-      { id: 'pipeline', label: 'In Pipeline', value: inPipeline, color: '#d97706' },
-      { id: 'rejected', label: 'Rejected', value: rejected, color: '#dc2626' },
-      { id: 'noresponse', label: 'No Response', value: noResponse, color: '#9ca3af' },
+      { id: 'offer',       label: 'Offer',        value: offer,       color: '#15803d', linkOpacity: 0.32 },
+      { id: 'interview',   label: 'Interviewing', value: interview,   color: '#b45309', linkOpacity: 0.32 },
+      { id: 'rejected',    label: 'Rejected',     value: rejected,    color: '#dc2626', linkOpacity: 0.22 },
+      { id: 'noresponse',  label: 'No Response',  value: noResponse,  color: '#9ca3af', linkOpacity: 0.13 },
     ],
     total, GAP, PAD_Y, USABLE_H,
   )
 
-  const pipelineNode = col1.find(n => n.id === 'pipeline')
-
-  const col2 = pipelineNode && hasPipeline
-    ? layoutNodes(
-        [
-          { id: 'offer', label: 'Offer', value: offer, color: '#15803d' },
-          { id: 'interview', label: 'Interviewing', value: interview, color: '#b45309' },
-        ],
-        inPipeline, GAP, pipelineNode.y, pipelineNode.h,
-      )
-    : []
-
-  interface LinkShape { d: string; color: string; key: string }
-  const links: LinkShape[] = []
-
-  // col0 → col1
-  let srcY = col0[0].y
-  for (const tgt of col1) {
-    const sliceH = (tgt.value / total) * col0[0].h
-    links.push({
-      key: `0-${tgt.id}`,
-      color: tgt.color,
-      d: bezierPath(COL_X[0] + NODE_W, srcY, srcY + sliceH, COL_X[1], tgt.y, tgt.y + tgt.h),
-    })
-    srcY += sliceH
-  }
-
-  // col1 pipeline → col2
-  if (pipelineNode && col2.length > 0) {
-    let sy = pipelineNode.y
-    for (const tgt of col2) {
-      const sliceH = (tgt.value / inPipeline) * pipelineNode.h
-      links.push({
-        key: `1-${tgt.id}`,
-        color: tgt.color,
-        d: bezierPath(COL_X[1] + NODE_W, sy, sy + sliceH, COL_X[2], tgt.y, tgt.y + tgt.h),
-      })
-      sy += sliceH
+  const links = col1.map(tgt => {
+    const srcY0 = col0[0].y
+    const srcH = col0[0].h
+    // Accumulate offset for this target's slice on the source bar
+    let offset = 0
+    for (const n of col1) {
+      if (n.id === tgt.id) break
+      offset += (n.value / total) * srcH
     }
-  }
-
-  const allCols = [col0, col1, ...(hasPipeline ? [col2] : [])]
+    const sliceH = (tgt.value / total) * srcH
+    return {
+      key: tgt.id,
+      color: tgt.color,
+      opacity: tgt.linkOpacity,
+      d: bezierPath(COL_X[0] + NODE_W, srcY0 + offset, srcY0 + offset + sliceH, COL_X[1], tgt.y, tgt.y + tgt.h),
+    }
+  })
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" style={{ maxHeight: H }}>
-      {/* Ribbon links (behind nodes) */}
+      {/* Ribbon links */}
       {links.map(link => (
-        <path key={link.key} d={link.d} fill={link.color} opacity={0.22} />
+        <path key={link.key} d={link.d} fill={link.color} opacity={link.opacity} />
       ))}
 
       {/* Node bars */}
-      {allCols.map((col, ci) =>
+      {[col0, col1].map((col, ci) =>
         col.map(node => (
           <rect
             key={node.id}
@@ -144,51 +118,45 @@ export default function ApplicationFlowDiagram({ total, interview, offer, reject
         )),
       )}
 
-      {/* Col 0: label to the left */}
-      {col0.map(node => (
-        <text
-          key={node.id}
-          x={COL_X[0] - 10}
-          y={node.y + node.h / 2}
-          textAnchor="end"
-          dominantBaseline="middle"
-          fill="#374151"
-          fontSize={12}
-        >
-          <tspan fontWeight="700">{node.value}</tspan>
-          {' '}{node.label}
-        </text>
-      ))}
+      {/* Col 0 label: bold count + "Applied" to the left */}
+      <text
+        x={COL_X[0] - 10}
+        y={col0[0].y + col0[0].h / 2}
+        textAnchor="end"
+        dominantBaseline="middle"
+        fill="#111827"
+        fontSize={13}
+      >
+        <tspan fontWeight="800">{total}</tspan>
+        <tspan fill="#6b7280" fontWeight="400"> Applied</tspan>
+      </text>
 
-      {/* Col 1 labels: to the right */}
-      {col1.map(node => (
-        <text
-          key={node.id}
-          x={COL_X[1] + NODE_W + 8}
-          y={node.y + node.h / 2}
-          dominantBaseline="middle"
-          fill="#374151"
-          fontSize={11}
-        >
-          {node.label}{' '}
-          <tspan fontWeight="700" fill={node.color}>{node.value}</tspan>
-        </text>
-      ))}
-
-      {/* Col 2 labels: to the right */}
-      {col2.map(node => (
-        <text
-          key={node.id}
-          x={COL_X[2] + NODE_W + 8}
-          y={node.y + node.h / 2}
-          dominantBaseline="middle"
-          fill="#374151"
-          fontSize={11}
-        >
-          {node.label}{' '}
-          <tspan fontWeight="700" fill={node.color}>{node.value}</tspan>
-        </text>
-      ))}
+      {/* Col 1 labels: two-line for tall nodes, inline for short */}
+      {col1.map(node => {
+        const x = COL_X[1] + NODE_W + 10
+        const cy = node.y + node.h / 2
+        if (node.h >= TWO_LINE_H) {
+          return (
+            <g key={node.id}>
+              <text x={x} y={cy - 5} fill="#6b7280" fontSize={10}>{node.label}</text>
+              <text x={x} y={cy + 7} fill={node.color} fontSize={13} fontWeight="700">{node.value}</text>
+            </g>
+          )
+        }
+        return (
+          <text
+            key={node.id}
+            x={x}
+            y={cy}
+            dominantBaseline="middle"
+            fill="#374151"
+            fontSize={11}
+          >
+            {node.label}{' '}
+            <tspan fontWeight="700" fill={node.color}>{node.value}</tspan>
+          </text>
+        )
+      })}
     </svg>
   )
 }
