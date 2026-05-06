@@ -6,10 +6,36 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { getStatusColor } from '@/lib/utils'
 import { Application, ApplicationStatus } from '@/lib/types'
-import { ExternalLink, MapPin, ChevronDown, Briefcase, Plus, X, Trash2, Pencil } from 'lucide-react'
+import { ExternalLink, MapPin, ChevronDown, Briefcase, Plus, X, Trash2, Pencil, Search } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 
 const STATUSES: ApplicationStatus[] = ['applied', 'interview', 'offer', 'rejected']
+
+type SortOption = 'newest' | 'interview' | 'updated'
+
+const SORT_LABELS: Record<SortOption, string> = {
+  newest: 'Newest first',
+  interview: 'Interview first',
+  updated: 'Recently updated',
+}
+
+function sortApplications(apps: Application[], sort: SortOption): Application[] {
+  const sorted = [...apps]
+  if (sort === 'newest') {
+    return sorted.sort((a, b) => new Date(b.applied_at).getTime() - new Date(a.applied_at).getTime())
+  }
+  if (sort === 'interview') {
+    return sorted.sort((a, b) => {
+      if (a.status === 'interview' && b.status !== 'interview') return -1
+      if (b.status === 'interview' && a.status !== 'interview') return 1
+      return new Date(b.applied_at).getTime() - new Date(a.applied_at).getTime()
+    })
+  }
+  if (sort === 'updated') {
+    return sorted.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+  }
+  return sorted
+}
 
 interface ApplicationsClientProps {
   applications: Application[]
@@ -20,6 +46,8 @@ export function ApplicationsClient({ applications: initial, userId }: Applicatio
   const supabase = createClient()
   const [applications, setApplications] = useState(initial)
   const [filterStatus, setFilterStatus] = useState<ApplicationStatus | 'all'>('all')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [sortBy, setSortBy] = useState<SortOption>('newest')
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingApplication, setEditingApplication] = useState<Application | null>(null)
 
@@ -79,14 +107,24 @@ export function ApplicationsClient({ applications: initial, userId }: Applicatio
     return json.error ?? 'Something went wrong. Please try again.'
   }
 
-  const filtered = filterStatus === 'all'
-    ? applications
-    : applications.filter(a => a.status === filterStatus)
+  const q = searchQuery.trim().toLowerCase()
+  const filtered = sortApplications(
+    applications.filter(a => {
+      if (filterStatus !== 'all' && a.status !== filterStatus) return false
+      if (!q) return true
+      const job = a.jobs as { title: string; company: string | null; location: string | null } | null
+      const title    = (a.title    ?? job?.title    ?? '').toLowerCase()
+      const company  = (a.company  ?? job?.company  ?? '').toLowerCase()
+      const location = (a.location ?? job?.location ?? '').toLowerCase()
+      return title.includes(q) || company.includes(q) || location.includes(q)
+    }),
+    sortBy
+  )
 
   return (
     <div>
       {/* Filter tabs + Add button */}
-      <div className="flex items-center justify-between gap-2 mb-6 flex-wrap">
+      <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={() => setFilterStatus('all')}
@@ -120,15 +158,50 @@ export function ApplicationsClient({ applications: initial, userId }: Applicatio
         </button>
       </div>
 
+      {/* Search + Sort row */}
+      <div className="flex items-center gap-3 mb-6 flex-wrap">
+        <div className="relative flex-1 min-w-48">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search by title, company, or location…"
+            className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-600 bg-white"
+          />
+        </div>
+        <div className="relative">
+          <select
+            value={sortBy}
+            onChange={e => setSortBy(e.target.value as SortOption)}
+            className="appearance-none pl-3 pr-8 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-600 bg-white text-gray-700 cursor-pointer"
+          >
+            {(Object.keys(SORT_LABELS) as SortOption[]).map(opt => (
+              <option key={opt} value={opt}>{SORT_LABELS[opt]}</option>
+            ))}
+          </select>
+          <ChevronDown className="w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400" />
+        </div>
+      </div>
+
       {filtered.length === 0 ? (
         <Card>
           <CardContent className="py-16 text-center">
             <Briefcase className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-700 mb-2">No applications</h3>
-            <p className="text-gray-500 text-sm">
-              Track applications from the{' '}
-              <a href="/jobs" className="text-green-700 hover:underline">Recent Jobs</a> page, or add one manually.
-            </p>
+            {q || filterStatus !== 'all' ? (
+              <>
+                <h3 className="text-lg font-semibold text-gray-700 mb-2">No results</h3>
+                <p className="text-gray-500 text-sm">Try a different search or filter.</p>
+              </>
+            ) : (
+              <>
+                <h3 className="text-lg font-semibold text-gray-700 mb-2">No applications</h3>
+                <p className="text-gray-500 text-sm">
+                  Track applications from the{' '}
+                  <a href="/jobs" className="text-green-700 hover:underline">Recent Jobs</a> page, or add one manually.
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
       ) : (
