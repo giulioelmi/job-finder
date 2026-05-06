@@ -9,10 +9,42 @@ import { NetworkingContact, Job } from '@/lib/types'
 import { formatDistanceToNow, isPast, formatDistanceToNowStrict } from 'date-fns'
 import {
   Users, Plus, X, Pencil, Trash2, Building2, Clock,
-  ExternalLink, CheckCircle,
+  ExternalLink, CheckCircle, Search, ChevronDown,
 } from 'lucide-react'
 
 const FOLLOWUP_DAYS = 14
+
+type ContactSortOption = 'followup' | 'contacted' | 'newest'
+
+const CONTACT_SORT_LABELS: Record<ContactSortOption, string> = {
+  followup: 'Follow-up due',
+  contacted: 'Recently contacted',
+  newest: 'Newest first',
+}
+
+function sortContacts(contacts: NetworkingContact[], sort: ContactSortOption): NetworkingContact[] {
+  const sorted = [...contacts]
+  if (sort === 'followup') {
+    return sorted.sort((a, b) => {
+      if (!a.next_followup_at && !b.next_followup_at) return 0
+      if (!a.next_followup_at) return 1
+      if (!b.next_followup_at) return -1
+      return new Date(a.next_followup_at).getTime() - new Date(b.next_followup_at).getTime()
+    })
+  }
+  if (sort === 'contacted') {
+    return sorted.sort((a, b) => {
+      if (!a.last_contacted_at && !b.last_contacted_at) return 0
+      if (!a.last_contacted_at) return 1
+      if (!b.last_contacted_at) return -1
+      return new Date(b.last_contacted_at).getTime() - new Date(a.last_contacted_at).getTime()
+    })
+  }
+  if (sort === 'newest') {
+    return sorted.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+  }
+  return sorted
+}
 
 type ContactFormData = {
   name: string
@@ -32,6 +64,8 @@ interface NetworkingClientProps {
 export function NetworkingClient({ contacts: initial, contactJobsByCompany, userId }: NetworkingClientProps) {
   const supabase = createClient()
   const [contacts, setContacts] = useState(initial)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [sortBy, setSortBy] = useState<ContactSortOption>('followup')
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingContact, setEditingContact] = useState<NetworkingContact | null>(null)
 
@@ -92,9 +126,21 @@ export function NetworkingClient({ contacts: initial, contactJobsByCompany, user
     c => c.next_followup_at && isPast(new Date(c.next_followup_at))
   ).length
 
+  const q = searchQuery.trim().toLowerCase()
+  const visibleContacts = sortContacts(
+    contacts.filter(c => {
+      if (!q) return true
+      const name    = c.name.toLowerCase()
+      const company = (c.company ?? '').toLowerCase()
+      const role    = (c.role ?? '').toLowerCase()
+      return name.includes(q) || company.includes(q) || role.includes(q)
+    }),
+    sortBy
+  )
+
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between flex-wrap gap-3">
+      <div className="mb-4 flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Networking</h1>
           <p className="text-gray-500 mt-1">Track your contacts and follow up every 2 weeks</p>
@@ -115,20 +161,55 @@ export function NetworkingClient({ contacts: initial, contactJobsByCompany, user
         </div>
       </div>
 
-      {contacts.length === 0 ? (
+      {/* Search + Sort row */}
+      <div className="flex items-center gap-3 mb-6 flex-wrap">
+        <div className="relative flex-1 min-w-48">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search by name, company, or role…"
+            className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-600 bg-white"
+          />
+        </div>
+        <div className="relative">
+          <select
+            value={sortBy}
+            onChange={e => setSortBy(e.target.value as ContactSortOption)}
+            className="appearance-none pl-3 pr-8 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-600 bg-white text-gray-700 cursor-pointer"
+          >
+            {(Object.keys(CONTACT_SORT_LABELS) as ContactSortOption[]).map(opt => (
+              <option key={opt} value={opt}>{CONTACT_SORT_LABELS[opt]}</option>
+            ))}
+          </select>
+          <ChevronDown className="w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400" />
+        </div>
+      </div>
+
+      {visibleContacts.length === 0 ? (
         <Card>
           <CardContent className="py-16 text-center">
             <Users className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-700 mb-2">No contacts yet</h3>
-            <p className="text-gray-500 text-sm max-w-sm mx-auto">
-              Add people you&apos;re networking with. You&apos;ll get reminded to follow up every 2 weeks, and
-              you&apos;ll see new job openings at their companies here.
-            </p>
+            {q ? (
+              <>
+                <h3 className="text-lg font-semibold text-gray-700 mb-2">No results</h3>
+                <p className="text-gray-500 text-sm">Try a different search term.</p>
+              </>
+            ) : (
+              <>
+                <h3 className="text-lg font-semibold text-gray-700 mb-2">No contacts yet</h3>
+                <p className="text-gray-500 text-sm max-w-sm mx-auto">
+                  Add people you&apos;re networking with. You&apos;ll get reminded to follow up every 2 weeks, and
+                  you&apos;ll see new job openings at their companies here.
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-3">
-          {contacts.map(contact => {
+          {visibleContacts.map(contact => {
             const isOverdue = contact.next_followup_at ? isPast(new Date(contact.next_followup_at)) : false
             const contactJobs = getContactJobs(contact)
 
