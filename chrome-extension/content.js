@@ -656,7 +656,11 @@
       return
     }
 
-    // Expanded card — branch on mode
+    // Expanded card — autofill states take priority
+    if (autofillStep === 'picker') { renderAutofillPicker(); return }
+    if (autofillStep === 'review') { renderAutofillReview(); return }
+    if (autofillStep === 'done')   { renderAutofillDone();   return }
+
     if (mode === 'linkedin') {
       renderContactCard()
     } else {
@@ -723,6 +727,11 @@
           cursor:${loading ? 'not-allowed' : 'pointer'};opacity:${applyOpacity};
           font-family:inherit;letter-spacing:0.01em;transition:background 0.15s;
         ">${applyLabel}</button>
+        ${!loading ? `<button id="autofill-btn" style="
+          width:100%;padding:9px;background:#fff;color:#15803d;border:1.5px solid #15803d;
+          border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;
+          font-family:inherit;letter-spacing:0.01em;transition:background 0.15s;margin-top:6px;
+        ">⚡ Autofill</button>` : ''}
         <button id="minimize" style="
           width:100%;padding:6px;background:none;color:#9ca3af;border:none;
           border-radius:7px;font-size:12px;cursor:pointer;margin-top:6px;font-family:inherit;
@@ -733,6 +742,17 @@
     shadow.getElementById('close').onclick   = () => { dismissed = true; render() }
     shadow.getElementById('minimize').onclick = () => { expanded = false; render() }
     if (!loading) shadow.getElementById('apply-btn').onclick = handleApply
+    if (!loading) {
+      const afBtn = shadow.getElementById('autofill-btn')
+      if (afBtn) afBtn.onclick = async () => {
+        autofillStep = 'picker'
+        autofillProfiles = []
+        render()
+        const res = await chrome.runtime.sendMessage({ type: 'GET_PROFILES' }).catch(() => null)
+        autofillProfiles = res?.profiles ?? []
+        if (autofillStep === 'picker') render()
+      }
+    }
   }
 
   function renderAutofillPicker() {
