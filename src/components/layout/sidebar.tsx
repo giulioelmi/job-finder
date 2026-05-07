@@ -12,6 +12,7 @@ import {
   Briefcase,
   Users,
   X,
+  UserCircle,
 } from 'lucide-react'
 
 interface NavItem {
@@ -35,6 +36,7 @@ export function Sidebar({ userEmail, onClose, notificationCount = 0 }: SidebarPr
     { href: '/jobs', label: 'Recent Jobs', icon: Bell },
     { href: '/applications', label: 'Applications', icon: Briefcase },
     { href: '/networking', label: 'Networking', icon: Users, badge: notificationCount },
+    { href: '/profiles', label: 'Profiles', icon: UserCircle },
     { href: '/settings', label: 'Settings', icon: Settings },
   ]
 
