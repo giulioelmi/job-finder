@@ -35,6 +35,18 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     extractJob(message.data).then(sendResponse)
     return true
   }
+  if (message.type === 'GET_PROFILES') {
+    getProfiles().then(sendResponse)
+    return true
+  }
+  if (message.type === 'AUTOFILL') {
+    autofill(message.data).then(sendResponse)
+    return true
+  }
+  if (message.type === 'COVER_LETTER') {
+    generateCoverLetter(message.data).then(sendResponse)
+    return true
+  }
 })
 } // end chrome.runtime.onMessage guard
 
@@ -145,6 +157,76 @@ async function extractJob({ text, url }) {
     return body
   } catch (e) {
     return { error: 'NETWORK_ERROR', detail: String(e?.message || e) }
+  }
+}
+
+async function getProfiles() {
+  const { token } = await getValidToken()
+  if (!token) return { error: 'NOT_LOGGED_IN' }
+
+  try {
+    const res = await fetch(`${APP_URL}/api/profiles`, {
+      headers: { 'Authorization': `Bearer ${token}` },
+    })
+    const body = await res.json().catch(() => ({}))
+    if (!res.ok) return { error: body.error || `Server error (${res.status})` }
+    return { profiles: body.profiles }
+  } catch (e) {
+    return { error: 'Network error — check your connection' }
+  }
+}
+
+async function autofill({ profileId, formFields, jobTitle, company, profileOverrides }) {
+  const { token } = await getValidToken()
+  if (!token) return { error: 'NOT_LOGGED_IN' }
+
+  try {
+    const res = await fetch(`${APP_URL}/api/extension/autofill`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        profile_id: profileId,
+        form_fields: formFields,
+        job_title: jobTitle,
+        company,
+        profile_overrides: profileOverrides || {},
+      }),
+    })
+    const body = await res.json().catch(() => ({}))
+    if (!res.ok) return { error: body.error || `Server error (${res.status})` }
+    return { fields: body.fields }
+  } catch (e) {
+    return { error: 'Network error — check your connection' }
+  }
+}
+
+async function generateCoverLetter({ profileId, jobTitle, company, jobContext, customPrompt }) {
+  const { token } = await getValidToken()
+  if (!token) return { error: 'NOT_LOGGED_IN' }
+
+  try {
+    const res = await fetch(`${APP_URL}/api/extension/cover-letter`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        profile_id: profileId,
+        job_title: jobTitle,
+        company,
+        job_context: jobContext,
+        custom_prompt: customPrompt,
+      }),
+    })
+    const body = await res.json().catch(() => ({}))
+    if (!res.ok) return { error: body.error || `Server error (${res.status})` }
+    return { cover_letter: body.cover_letter }
+  } catch (e) {
+    return { error: 'Network error — check your connection' }
   }
 }
 
