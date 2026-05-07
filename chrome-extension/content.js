@@ -85,6 +85,160 @@
     return Array.from(document.querySelectorAll('h1, h2'))
   }
 
+  // ─── DOM scanner ─────────────────────────────────────────────────────────
+  // Scans visible form fields and returns a compact descriptor array for the API.
+
+  function isVisible(el) {
+    const rect = el.getBoundingClientRect()
+    if (rect.width === 0 && rect.height === 0) return false
+    const style = window.getComputedStyle(el)
+    return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0'
+  }
+
+  function getFieldSelector(el) {
+    if (el.id) return `#${CSS.escape(el.id)}`
+    if (el.name) return `[name="${CSS.escape(el.name)}"]`
+    const tag = el.tagName.toLowerCase()
+    const siblings = Array.from((el.parentElement || document.body).querySelectorAll(tag))
+    return `${tag}:nth-of-type(${siblings.indexOf(el) + 1})`
+  }
+
+  function getFieldLabel(el) {
+    if (el.id) {
+      const lbl = document.querySelector(`label[for="${CSS.escape(el.id)}"]`)
+      if (lbl) return lbl.textContent.trim().slice(0, 100)
+    }
+    const ariaLabel = el.getAttribute('aria-label')
+    if (ariaLabel) return ariaLabel.trim().slice(0, 100)
+    const labelledById = el.getAttribute('aria-labelledby')
+    if (labelledById) {
+      const lblEl = document.getElementById(labelledById)
+      if (lblEl) return lblEl.textContent.trim().slice(0, 100)
+    }
+    const closestLabel = el.closest('label')
+    if (closestLabel) return closestLabel.textContent.replace(el.value || '', '').trim().slice(0, 100)
+    if (el.placeholder) return el.placeholder.trim().slice(0, 100)
+    const prev = el.previousElementSibling
+    if (prev && prev.textContent) return prev.textContent.trim().slice(0, 100)
+    return ''
+  }
+
+  function getRadioGroupOptions(name) {
+    return Array.from(document.querySelectorAll(`input[type="radio"][name="${CSS.escape(name)}"]`))
+      .map(r => {
+        if (r.id) {
+          const lbl = document.querySelector(`label[for="${CSS.escape(r.id)}"]`)
+          if (lbl) return lbl.textContent.trim()
+        }
+        return r.closest('label')?.textContent?.trim() || r.value
+      })
+      .filter(Boolean)
+  }
+
+  function scanFormFields() {
+    const fields = []
+    const seen = new Set()
+    const seenRadioGroups = new Set()
+
+    const els = document.querySelectorAll(
+      'input:not([type="hidden"]):not([type="submit"]):not([type="button"])' +
+      ':not([type="image"]):not([type="file"]):not([disabled]),' +
+      'select:not([disabled]),' +
+      'textarea:not([disabled])'
+    )
+
+    for (const el of els) {
+      if (!isVisible(el)) continue
+
+      const type = (el.getAttribute('type') || el.tagName.toLowerCase()).toLowerCase()
+
+      // Deduplicate radio groups — represent the whole group as one field
+      if (type === 'radio') {
+        const name = el.name
+        if (!name || seenRadioGroups.has(name)) continue
+        seenRadioGroups.add(name)
+        fields.push({
+          selector: `input[type="radio"][name="${CSS.escape(name)}"]`,
+          type: 'radio',
+          label: getFieldLabel(el),
+          options: getRadioGroupOptions(name),
+        })
+        continue
+      }
+
+      const selector = getFieldSelector(el)
+      if (seen.has(selector)) continue
+      seen.add(selector)
+
+      const field = { selector, type, label: getFieldLabel(el) }
+
+      if (el.tagName === 'SELECT') {
+        field.options = Array.from(el.options)
+          .map(o => o.text.trim())
+          .filter(t => t && t !== '—' && t !== 'Select...' && t !== 'Please select')
+      }
+
+      fields.push(field)
+    }
+
+    return fields
+  }
+
+  // ─── Field filler ─────────────────────────────────────────────────────────
+
+  function fillFormFields(mappings) {
+    let filled = 0
+
+    for (const { selector, value } of mappings) {
+      if (!value) continue
+      try {
+        const el = document.querySelector(selector)
+        if (!el) continue
+
+        const tag = el.tagName
+        const type = (el.getAttribute('type') || '').toLowerCase()
+
+        if (tag === 'SELECT') {
+          const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set
+          const options = Array.from(el.options)
+          const match = options.find(o => o.text.trim() === value) ||
+                        options.find(o => o.text.trim().toLowerCase() === value.toLowerCase())
+          if (!match) continue
+          nativeSetter.call(el, match.value)
+          el.dispatchEvent(new Event('change', { bubbles: true }))
+          filled++
+        } else if (type === 'radio') {
+          // selector is the group selector; find the matching option
+          const radios = document.querySelectorAll(selector)
+          for (const radio of radios) {
+            const label = radio.id
+              ? document.querySelector(`label[for="${CSS.escape(radio.id)}"]`)?.textContent?.trim()
+              : radio.closest('label')?.textContent?.trim()
+            const text = label || radio.value
+            if (text.toLowerCase() === value.toLowerCase() || radio.value.toLowerCase() === value.toLowerCase()) {
+              radio.click()
+              filled++
+              break
+            }
+          }
+        } else if (type === 'checkbox') {
+          const shouldCheck = value === 'true' || value === '1' || value.toLowerCase() === 'yes'
+          if (el.checked !== shouldCheck) { el.click(); filled++ }
+        } else {
+          // text, email, tel, url, number, textarea
+          const proto = tag === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype
+          const nativeSetter = Object.getOwnPropertyDescriptor(proto, 'value').set
+          nativeSetter.call(el, value)
+          el.dispatchEvent(new Event('input', { bubbles: true }))
+          el.dispatchEvent(new Event('change', { bubbles: true }))
+          filled++
+        }
+      } catch (_) {}
+    }
+
+    return filled
+  }
+
   // ─── LinkedIn info extraction ──────────────────────────────────────────────
 
   function extractLinkedInProfile() {
