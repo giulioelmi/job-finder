@@ -140,6 +140,8 @@ export interface AutofillProfile {
   custom_qa: CustomQAEntry[]
 
   cover_letter_prompt: string | null
+  referral_source: string | null
+  resume_url: string | null
 
   created_at: string
   updated_at: string
