@@ -449,6 +449,27 @@
   // ─── Job info extraction (LLM-driven) ──────────────────────────────────────
 
   const EXTRACT_TTL_MS = 30 * 60 * 1000
+  const AUTOFILL_SESSION_TTL_MS = 30 * 60 * 1000
+
+  async function getAutofillSession() {
+    if (!chrome?.storage?.local) return null
+    const { autofill_session } = await chrome.storage.local.get(['autofill_session'])
+    if (!autofill_session) return null
+    if (Date.now() - autofill_session.savedAt > AUTOFILL_SESSION_TTL_MS) return null
+    return autofill_session
+  }
+
+  async function setAutofillSession(profileId, fields) {
+    if (!chrome?.storage?.local) return
+    await chrome.storage.local.set({
+      autofill_session: { profileId, editedFields: fields, savedAt: Date.now() },
+    })
+  }
+
+  async function clearAutofillSession() {
+    if (!chrome?.storage?.local) return
+    await chrome.storage.local.remove(['autofill_session'])
+  }
 
   // JSON-LD fast path — covers Greenhouse, Ashby, Lever and most modern ATSes.
   function extractFromJsonLd() {
@@ -807,7 +828,7 @@
       </div>`
 
     if (!loading) attachFocusStyles()
-    shadow.getElementById('close').onclick   = () => { dismissed = true; render() }
+    shadow.getElementById('close').onclick   = () => { dismissed = true; clearAutofillSession(); render() }
     shadow.getElementById('minimize').onclick = () => { expanded = false; render() }
     if (!loading) shadow.getElementById('apply-btn').onclick = handleApply
     if (!loading) {
@@ -880,6 +901,7 @@
       editedFields = {}
       coverLetterOn = false
       autofillStep = 'review'
+      setAutofillSession(selectedProfile.id, {})
       render()
     })
   }
@@ -956,7 +978,10 @@
     // Save edits on every keystroke so toggle and fill see up-to-date values
     simpleFields.forEach(([key]) => {
       const inp = shadow.getElementById(`af-${key}`)
-      if (inp) inp.addEventListener('input', () => { editedFields[key] = inp.value })
+      if (inp) inp.addEventListener('input', () => {
+        editedFields[key] = inp.value
+        setAutofillSession(selectedProfile.id, editedFields)
+      })
     })
 
     function saveCurrentFields() {
@@ -1067,6 +1092,7 @@
       }
     }
 
+    await clearAutofillSession()
     autofillStep = 'done'
     render()
   }
@@ -1132,6 +1158,7 @@
 
     async function dismiss() {
       await clearActiveJob()
+      clearAutofillSession()
       render()
     }
     shadow.getElementById('conf-close').onclick = dismiss
@@ -1461,7 +1488,23 @@
     const activeJob = await getActiveJob()
     if (!isJobPage() && !activeJob) return   // plain non-job page — show nothing
 
-    render()                  // show minimized button immediately
+    // Restore autofill session on multi-page flows
+    const session = await getAutofillSession()
+    if (session && activeJob) {
+      const profilesRes = await chrome.runtime.sendMessage({ type: 'GET_PROFILES' }).catch(() => null)
+      if (profilesRes?.profiles) {
+        const profile = profilesRes.profiles.find(p => p.id === session.profileId)
+        if (profile) {
+          autofillProfiles = profilesRes.profiles
+          selectedProfile  = profile
+          editedFields     = session.editedFields || {}
+          autofillStep     = 'review'
+          expanded         = true
+        }
+      }
+    }
+
+    render()                  // show minimized button (or restored review card)
     startExtraction()         // resolve jobInfo in parallel (may re-render)
   }
 
