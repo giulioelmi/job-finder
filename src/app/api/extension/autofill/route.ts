@@ -13,6 +13,7 @@ Rules:
 - For select/radio fields the value MUST exactly match one of the provided option strings.
 - For checkboxes use "true" or "false".
 - For DEI fields where profile value is null, use "Prefer not to say" if that option exists, otherwise skip.
+- For "how did you hear about" / "how did you find this role" / "how did you learn about this position" questions, use the referral_source field.
 - Never invent values not in the profile.
 - Omit fields you are uncertain about.
 - Return valid JSON only, no prose, no markdown.`
@@ -39,6 +40,7 @@ function serializeProfile(p: AutofillProfile): string {
     `Veteran status: ${p.veteran_status ?? "I don't wish to answer"}`,
     `Disability status: ${p.disability_status ?? "I don't wish to answer"}`,
     `Skills: ${(p.skills ?? []).join(', ')}`,
+    `Referral source (how did you hear about us): ${p.referral_source ?? ''}`,
   ]
 
   if (p.work_experience?.length) {
