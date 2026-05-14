@@ -181,12 +181,50 @@
       fields.push(field)
     }
 
+    // ── Custom dropdowns — [role="combobox"] ──────────────────────────────
+    const comboboxEls = document.querySelectorAll('[role="combobox"]:not([disabled])')
+    for (const el of comboboxEls) {
+      if (!isVisible(el)) continue
+      if (el.tagName === 'SELECT') continue   // already covered above
+
+      const selector = getFieldSelector(el)
+      if (seen.has(selector)) continue
+      seen.add(selector)
+
+      const field = { selector, type: 'combobox', label: getFieldLabel(el), options: [] }
+
+      // Try aria-controls → listbox
+      const controlsId = el.getAttribute('aria-controls')
+      if (controlsId) {
+        const listbox = document.getElementById(controlsId)
+        if (listbox) {
+          field.options = Array.from(listbox.querySelectorAll('[role="option"]'))
+            .map(o => o.textContent.trim()).filter(Boolean)
+        }
+      }
+
+      // Fallback: nearest ancestor that might contain a hidden listbox
+      if (!field.options.length) {
+        const ancestor = el.closest('[role="group"], [class*="select"], [class*="dropdown"]')
+          || el.parentElement?.parentElement
+        if (ancestor) {
+          const listbox = ancestor.querySelector('[role="listbox"]')
+          if (listbox) {
+            field.options = Array.from(listbox.querySelectorAll('[role="option"]'))
+              .map(o => o.textContent.trim()).filter(Boolean)
+          }
+        }
+      }
+
+      fields.push(field)
+    }
+
     return fields
   }
 
   // ─── Field filler ─────────────────────────────────────────────────────────
 
-  function fillFormFields(mappings) {
+  async function fillFormFields(mappings) {
     let filled = 0
 
     for (const { selector, value } of mappings) {
@@ -195,8 +233,8 @@
         const el = document.querySelector(selector)
         if (!el) continue
 
-        const tag = el.tagName
-        const type = (el.getAttribute('type') || '').toLowerCase()
+        const tag  = el.tagName
+        const type = (el.getAttribute('type') || el.getAttribute('role') || el.tagName.toLowerCase()).toLowerCase()
 
         if (tag === 'SELECT') {
           const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set
@@ -207,6 +245,35 @@
           nativeSetter.call(el, match.value)
           el.dispatchEvent(new Event('change', { bubbles: true }))
           filled++
+        } else if (type === 'combobox') {
+          el.click()
+          const found = await new Promise((resolve) => {
+            let elapsed = 0
+            const iv = setInterval(() => {
+              elapsed += 50
+              const opts = document.querySelectorAll('[role="option"]')
+              for (const opt of opts) {
+                const text = (opt.textContent || '').trim()
+                if (text.toLowerCase() === value.toLowerCase() ||
+                    text.toLowerCase().startsWith(value.toLowerCase())) {
+                  clearInterval(iv)
+                  opt.click()
+                  resolve(true)
+                  return
+                }
+              }
+              if (elapsed >= 800) {
+                clearInterval(iv)
+                // Fallback: type value + Enter (autocomplete-style fields)
+                const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
+                nativeSetter.call(el, value)
+                el.dispatchEvent(new Event('input', { bubbles: true }))
+                el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+                resolve(false)
+              }
+            }, 50)
+          })
+          if (found) filled++
         } else if (type === 'radio') {
           // selector is the group selector; find the matching option
           const radios = document.querySelectorAll(selector)
@@ -979,7 +1046,7 @@
       return
     }
 
-    filledCount = fillFormFields(autofillRes.fields)
+    filledCount = await fillFormFields(autofillRes.fields)
 
     coverLetterPasted = false
     if (coverLetterText) {
