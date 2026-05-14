@@ -67,3 +67,80 @@ export interface NetworkingContact {
   next_followup_at: string | null
   created_at: string
 }
+
+export interface EducationEntry {
+  school: string
+  degree: string
+  field_of_study: string
+  gpa: string
+  start_date: string
+  end_date: string
+}
+
+export interface WorkExperienceEntry {
+  company: string
+  title: string
+  start_date: string
+  end_date: string
+  current: boolean
+  description: string
+}
+
+export interface ProjectEntry {
+  name: string
+  url: string
+  description: string
+  technologies: string
+}
+
+export interface CustomQAEntry {
+  question: string
+  answer: string
+}
+
+export interface AutofillProfile {
+  id: string
+  user_id: string
+  name: string
+
+  first_name: string | null
+  last_name: string | null
+  email: string | null
+  phone: string | null
+  street_address: string | null
+  city: string | null
+  state: string | null
+  zip_code: string | null
+  country: string | null
+
+  linkedin_url: string | null
+  github_url: string | null
+  portfolio_url: string | null
+  website_url: string | null
+
+  authorized_to_work: boolean | null
+  requires_sponsorship: boolean | null
+  visa_type: string | null
+
+  desired_salary: number | null
+  salary_type: 'hourly' | 'yearly' | null
+  willing_to_relocate: boolean | null
+  available_start_date: string | null
+
+  gender: string | null
+  pronouns: string | null
+  ethnicity: string | null
+  veteran_status: string | null
+  disability_status: string | null
+
+  education: EducationEntry[]
+  work_experience: WorkExperienceEntry[]
+  projects: ProjectEntry[]
+  skills: string[]
+  custom_qa: CustomQAEntry[]
+
+  cover_letter_prompt: string | null
+
+  created_at: string
+  updated_at: string
+}

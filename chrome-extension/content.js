@@ -85,6 +85,160 @@
     return Array.from(document.querySelectorAll('h1, h2'))
   }
 
+  // ─── DOM scanner ─────────────────────────────────────────────────────────
+  // Scans visible form fields and returns a compact descriptor array for the API.
+
+  function isVisible(el) {
+    const rect = el.getBoundingClientRect()
+    if (rect.width === 0 && rect.height === 0) return false
+    const style = window.getComputedStyle(el)
+    return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0'
+  }
+
+  function getFieldSelector(el) {
+    if (el.id) return `#${CSS.escape(el.id)}`
+    if (el.name) return `[name="${CSS.escape(el.name)}"]`
+    const tag = el.tagName.toLowerCase()
+    const siblings = Array.from((el.parentElement || document.body).querySelectorAll(tag))
+    return `${tag}:nth-of-type(${siblings.indexOf(el) + 1})`
+  }
+
+  function getFieldLabel(el) {
+    if (el.id) {
+      const lbl = document.querySelector(`label[for="${CSS.escape(el.id)}"]`)
+      if (lbl) return lbl.textContent.trim().slice(0, 100)
+    }
+    const ariaLabel = el.getAttribute('aria-label')
+    if (ariaLabel) return ariaLabel.trim().slice(0, 100)
+    const labelledById = el.getAttribute('aria-labelledby')
+    if (labelledById) {
+      const lblEl = document.getElementById(labelledById)
+      if (lblEl) return lblEl.textContent.trim().slice(0, 100)
+    }
+    const closestLabel = el.closest('label')
+    if (closestLabel) return closestLabel.textContent.replace(el.value || '', '').trim().slice(0, 100)
+    if (el.placeholder) return el.placeholder.trim().slice(0, 100)
+    const prev = el.previousElementSibling
+    if (prev && prev.textContent) return prev.textContent.trim().slice(0, 100)
+    return ''
+  }
+
+  function getRadioGroupOptions(name) {
+    return Array.from(document.querySelectorAll(`input[type="radio"][name="${CSS.escape(name)}"]`))
+      .map(r => {
+        if (r.id) {
+          const lbl = document.querySelector(`label[for="${CSS.escape(r.id)}"]`)
+          if (lbl) return lbl.textContent.trim()
+        }
+        return r.closest('label')?.textContent?.trim() || r.value
+      })
+      .filter(Boolean)
+  }
+
+  function scanFormFields() {
+    const fields = []
+    const seen = new Set()
+    const seenRadioGroups = new Set()
+
+    const els = document.querySelectorAll(
+      'input:not([type="hidden"]):not([type="submit"]):not([type="button"])' +
+      ':not([type="image"]):not([type="file"]):not([disabled]),' +
+      'select:not([disabled]),' +
+      'textarea:not([disabled])'
+    )
+
+    for (const el of els) {
+      if (!isVisible(el)) continue
+
+      const type = (el.getAttribute('type') || el.tagName.toLowerCase()).toLowerCase()
+
+      // Deduplicate radio groups — represent the whole group as one field
+      if (type === 'radio') {
+        const name = el.name
+        if (!name || seenRadioGroups.has(name)) continue
+        seenRadioGroups.add(name)
+        fields.push({
+          selector: `input[type="radio"][name="${CSS.escape(name)}"]`,
+          type: 'radio',
+          label: getFieldLabel(el),
+          options: getRadioGroupOptions(name),
+        })
+        continue
+      }
+
+      const selector = getFieldSelector(el)
+      if (seen.has(selector)) continue
+      seen.add(selector)
+
+      const field = { selector, type, label: getFieldLabel(el) }
+
+      if (el.tagName === 'SELECT') {
+        field.options = Array.from(el.options)
+          .map(o => o.text.trim())
+          .filter(t => t && t !== '—' && t !== 'Select...' && t !== 'Please select')
+      }
+
+      fields.push(field)
+    }
+
+    return fields
+  }
+
+  // ─── Field filler ─────────────────────────────────────────────────────────
+
+  function fillFormFields(mappings) {
+    let filled = 0
+
+    for (const { selector, value } of mappings) {
+      if (!value) continue
+      try {
+        const el = document.querySelector(selector)
+        if (!el) continue
+
+        const tag = el.tagName
+        const type = (el.getAttribute('type') || '').toLowerCase()
+
+        if (tag === 'SELECT') {
+          const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set
+          const options = Array.from(el.options)
+          const match = options.find(o => o.text.trim() === value) ||
+                        options.find(o => o.text.trim().toLowerCase() === value.toLowerCase())
+          if (!match) continue
+          nativeSetter.call(el, match.value)
+          el.dispatchEvent(new Event('change', { bubbles: true }))
+          filled++
+        } else if (type === 'radio') {
+          // selector is the group selector; find the matching option
+          const radios = document.querySelectorAll(selector)
+          for (const radio of radios) {
+            const label = radio.id
+              ? document.querySelector(`label[for="${CSS.escape(radio.id)}"]`)?.textContent?.trim()
+              : radio.closest('label')?.textContent?.trim()
+            const text = label || radio.value
+            if (text.toLowerCase() === value.toLowerCase() || radio.value.toLowerCase() === value.toLowerCase()) {
+              radio.click()
+              filled++
+              break
+            }
+          }
+        } else if (type === 'checkbox') {
+          const shouldCheck = value === 'true' || value === '1' || value.toLowerCase() === 'yes'
+          if (el.checked !== shouldCheck) { el.click(); filled++ }
+        } else {
+          // text, email, tel, url, number, textarea
+          const proto = tag === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype
+          const nativeSetter = Object.getOwnPropertyDescriptor(proto, 'value').set
+          nativeSetter.call(el, value)
+          el.dispatchEvent(new Event('input', { bubbles: true }))
+          el.dispatchEvent(new Event('change', { bubbles: true }))
+          filled++
+        }
+      } catch (_) {}
+    }
+
+    return filled
+  }
+
   // ─── LinkedIn info extraction ──────────────────────────────────────────────
 
   function extractLinkedInProfile() {
@@ -365,6 +519,13 @@
   let contactInfo       = {}
   let extractionPending = false        // true while the LLM call is in-flight
   let extractionError   = ''           // human-readable error from the last extraction attempt
+  let autofillStep      = null    // null | 'picker' | 'review' | 'done'
+  let autofillProfiles  = []
+  let selectedProfile   = null
+  let editedFields      = {}     // field key → edited value overrides
+  let coverLetterOn     = false
+  let filledCount       = 0
+  let coverLetterPasted = false
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
 
@@ -495,7 +656,11 @@
       return
     }
 
-    // Expanded card — branch on mode
+    // Expanded card — autofill states take priority
+    if (autofillStep === 'picker') { renderAutofillPicker(); return }
+    if (autofillStep === 'review') { renderAutofillReview(); return }
+    if (autofillStep === 'done')   { renderAutofillDone();   return }
+
     if (mode === 'linkedin') {
       renderContactCard()
     } else {
@@ -562,6 +727,11 @@
           cursor:${loading ? 'not-allowed' : 'pointer'};opacity:${applyOpacity};
           font-family:inherit;letter-spacing:0.01em;transition:background 0.15s;
         ">${applyLabel}</button>
+        ${!loading ? `<button id="autofill-btn" style="
+          width:100%;padding:9px;background:#fff;color:#15803d;border:1.5px solid #15803d;
+          border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;
+          font-family:inherit;letter-spacing:0.01em;transition:background 0.15s;margin-top:6px;
+        ">⚡ Autofill</button>` : ''}
         <button id="minimize" style="
           width:100%;padding:6px;background:none;color:#9ca3af;border:none;
           border-radius:7px;font-size:12px;cursor:pointer;margin-top:6px;font-family:inherit;
@@ -572,6 +742,264 @@
     shadow.getElementById('close').onclick   = () => { dismissed = true; render() }
     shadow.getElementById('minimize').onclick = () => { expanded = false; render() }
     if (!loading) shadow.getElementById('apply-btn').onclick = handleApply
+    if (!loading) {
+      const afBtn = shadow.getElementById('autofill-btn')
+      if (afBtn) afBtn.onclick = async () => {
+        autofillStep = 'picker'
+        autofillProfiles = []
+        render()
+        const res = await chrome.runtime.sendMessage({ type: 'GET_PROFILES' }).catch(() => null)
+        autofillProfiles = res?.profiles ?? []
+        if (autofillStep === 'picker') render()
+      }
+    }
+  }
+
+  function renderAutofillPicker() {
+    const loading = autofillProfiles.length === 0
+
+    shadow.innerHTML = `
+      <div id="card" style="${CARD_STYLE}">
+        ${cardHeader('Autofill')}
+        ${loading
+          ? '<div style="text-align:center;padding:20px 0;font-size:12px;color:#6b7280;">Loading profiles…</div>'
+          : `<div style="font-size:10px;font-weight:600;color:#6b7280;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;">Select profile</div>
+             <div id="profile-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px;">
+               ${autofillProfiles.map((p, i) => `
+                 <div class="profile-option" data-idx="${i}" style="
+                   border:1.5px solid #d1d5db;border-radius:8px;padding:8px 10px;cursor:pointer;
+                 ">
+                   <div style="font-weight:600;font-size:12px;color:#374151;">${esc(p.name)}</div>
+                   <div style="font-size:10px;color:#6b7280;margin-top:1px;">
+                     ${esc([p.first_name, p.last_name].filter(Boolean).join(' '))}
+                     ${p.email ? `· ${esc(p.email)}` : ''}
+                   </div>
+                 </div>`).join('')}
+             </div>
+             <button id="next-btn" disabled style="
+               width:100%;padding:9px;background:#15803d;color:#fff;border:none;
+               border-radius:8px;font-size:12px;font-weight:600;cursor:not-allowed;
+               opacity:0.5;font-family:inherit;
+             ">Next →</button>`}
+        <button id="minimize" style="
+          width:100%;padding:6px;background:none;color:#9ca3af;border:none;
+          border-radius:7px;font-size:12px;cursor:pointer;margin-top:6px;font-family:inherit;
+        ">Minimize</button>
+      </div>`
+
+    shadow.getElementById('close').onclick = () => { dismissed = true; render() }
+    shadow.getElementById('minimize').onclick = () => { expanded = false; render() }
+
+    if (loading) return
+
+    let selectedIdx = -1
+    shadow.querySelectorAll('.profile-option').forEach(el => {
+      el.addEventListener('click', () => {
+        shadow.querySelectorAll('.profile-option').forEach(e =>
+          Object.assign(e.style, { borderColor: '#d1d5db', background: '#fff' }))
+        Object.assign(el.style, { borderColor: '#15803d', background: '#f0fdf4' })
+        selectedIdx = parseInt(el.getAttribute('data-idx'))
+        const nextBtn = shadow.getElementById('next-btn')
+        nextBtn.disabled = false
+        nextBtn.style.opacity = '1'
+        nextBtn.style.cursor = 'pointer'
+      })
+    })
+
+    shadow.getElementById('next-btn').addEventListener('click', () => {
+      if (selectedIdx < 0) return
+      selectedProfile = autofillProfiles[selectedIdx]
+      editedFields = {}
+      coverLetterOn = false
+      autofillStep = 'review'
+      render()
+    })
+  }
+
+  function renderAutofillReview() {
+    const APP_BAMBOO = 'https://www.jobbamboo.com'
+    const p = selectedProfile
+
+    const simpleFields = [
+      ['name', 'First name', p.first_name || ''],
+      ['last_name', 'Last name', p.last_name || ''],
+      ['email', 'Email', p.email || ''],
+      ['phone', 'Phone', p.phone || ''],
+      ['city', 'City', p.city || ''],
+      ['state', 'State', p.state || ''],
+      ['linkedin_url', 'LinkedIn', p.linkedin_url || ''],
+      ['github_url', 'GitHub', p.github_url || ''],
+    ]
+
+    const complexFields = [
+      ['work_experience', 'Work experience', (p.work_experience || []).length],
+      ['education', 'Education', (p.education || []).length],
+      ['projects', 'Projects', (p.projects || []).length],
+    ]
+
+    shadow.innerHTML = `
+      <div id="card" style="${CARD_STYLE}">
+        ${cardHeader(esc(p.name))}
+        <div style="max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:7px;margin-bottom:10px;padding-right:2px;">
+          ${simpleFields.map(([key, label, val]) => `
+            <div>
+              <label style="${LABEL_STYLE}">${label}</label>
+              <input id="af-${key}" value="${esc(editedFields[key] !== undefined ? editedFields[key] : val)}"
+                style="${INPUT_STYLE}" />
+            </div>`).join('')}
+          ${complexFields.map(([key, label, count]) => `
+            <div>
+              <label style="${LABEL_STYLE}">${label}</label>
+              <div style="border:1.5px solid #d1d5db;border-radius:8px;padding:5px 10px;font-size:11px;
+                color:#6b7280;background:#f9fafb;display:flex;justify-content:space-between;align-items:center;">
+                <span>${count} ${count === 1 ? 'entry' : 'entries'}</span>
+                <a href="${APP_BAMBOO}/profiles/${esc(p.id)}" target="_blank"
+                  style="color:#15803d;font-weight:600;font-size:11px;text-decoration:none;">Edit ↗</a>
+              </div>
+            </div>`).join('')}
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;
+          background:#f9fafb;border:1.5px solid #e5e7eb;border-radius:8px;padding:8px 10px;margin-bottom:10px;">
+          <span style="font-size:11px;font-weight:600;color:#374151;">Generate cover letter</span>
+          <div id="cl-toggle" style="
+            width:32px;height:18px;background:${coverLetterOn ? '#15803d' : '#d1d5db'};
+            border-radius:9px;position:relative;cursor:pointer;">
+            <div style="width:14px;height:14px;background:#fff;border-radius:50%;position:absolute;
+              top:2px;${coverLetterOn ? 'right:2px' : 'left:2px'};transition:left 0.15s,right 0.15s;"></div>
+          </div>
+        </div>
+        ${msgHtml()}
+        <div style="display:flex;gap:7px;">
+          <button id="af-back" style="flex:1;padding:8px;background:#f3f4f6;color:#374151;border:none;
+            border-radius:8px;font-size:11px;font-weight:500;cursor:pointer;font-family:inherit;">← Back</button>
+          <button id="af-fill" style="flex:2;padding:8px;background:#15803d;color:#fff;border:none;
+            border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">Fill form ✓</button>
+        </div>
+        <button id="minimize" style="
+          width:100%;padding:6px;background:none;color:#9ca3af;border:none;
+          border-radius:7px;font-size:12px;cursor:pointer;margin-top:6px;font-family:inherit;">Minimize</button>
+      </div>`
+
+    attachFocusStyles()
+    shadow.getElementById('close').onclick = () => { dismissed = true; render() }
+    shadow.getElementById('minimize').onclick = () => { expanded = false; render() }
+    shadow.getElementById('af-back').onclick = () => { autofillStep = 'picker'; render() }
+
+    // Save edits on every keystroke so toggle and fill see up-to-date values
+    simpleFields.forEach(([key]) => {
+      const inp = shadow.getElementById(`af-${key}`)
+      if (inp) inp.addEventListener('input', () => { editedFields[key] = inp.value })
+    })
+
+    function saveCurrentFields() {
+      simpleFields.forEach(([key]) => {
+        const inp = shadow.getElementById(`af-${key}`)
+        if (inp) editedFields[key] = inp.value
+      })
+    }
+
+    shadow.getElementById('cl-toggle').onclick = () => {
+      saveCurrentFields()   // preserve in-progress edits before re-render
+      coverLetterOn = !coverLetterOn
+      render()
+    }
+
+    shadow.getElementById('af-fill').onclick = () => { saveCurrentFields(); handleFill() }
+  }
+
+  function renderAutofillDone() {
+    shadow.innerHTML = `
+      <div id="card" style="${CARD_STYLE}">
+        ${cardHeader('')}
+        <div style="text-align:center;padding:16px 0;">
+          <div style="width:44px;height:44px;background:#f0fdf4;border-radius:50%;
+            display:flex;align-items:center;justify-content:center;margin:0 auto 10px;font-size:22px;">✓</div>
+          <div style="font-weight:700;font-size:14px;color:#15803d;margin-bottom:4px;">Form filled!</div>
+          <div style="font-size:11px;color:#6b7280;line-height:1.6;">
+            ${filledCount} field${filledCount !== 1 ? 's' : ''} filled
+            ${coverLetterPasted ? '· cover letter pasted' : ''}
+          </div>
+        </div>
+        ${msgHtml()}
+        <button id="apply-btn" style="
+          width:100%;padding:9px;background:#15803d;color:#fff;border:none;
+          border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;
+          font-family:inherit;margin-bottom:6px;">✓ Mark as Applied</button>
+        <button id="minimize" style="
+          width:100%;padding:6px;background:none;color:#9ca3af;border:none;
+          border-radius:7px;font-size:12px;cursor:pointer;font-family:inherit;">Minimize</button>
+      </div>`
+
+    shadow.getElementById('close').onclick = () => { dismissed = true; render() }
+    shadow.getElementById('minimize').onclick = () => { expanded = false; render() }
+    shadow.getElementById('apply-btn').onclick = handleApply
+  }
+
+  async function handleFill() {
+    const fillBtn = shadow.getElementById('af-fill')
+    if (fillBtn) { fillBtn.disabled = true; fillBtn.textContent = 'Scanning…'; fillBtn.style.opacity = '0.7' }
+
+    const formFields = scanFormFields()
+
+    let coverLetterText = null
+
+    if (coverLetterOn) {
+      if (fillBtn) fillBtn.textContent = 'Generating cover letter…'
+      const clRes = await chrome.runtime.sendMessage({
+        type: 'COVER_LETTER',
+        data: {
+          profileId: selectedProfile.id,
+          jobTitle: jobInfo.title || '',
+          company: jobInfo.company || '',
+          jobContext: filterPageForLLM(),
+          customPrompt: selectedProfile.cover_letter_prompt || '',
+        },
+      }).catch(() => null)
+      if (clRes?.cover_letter) coverLetterText = clRes.cover_letter
+    }
+
+    if (fillBtn) fillBtn.textContent = 'Filling…'
+
+    const autofillRes = await chrome.runtime.sendMessage({
+      type: 'AUTOFILL',
+      data: {
+        profileId: selectedProfile.id,
+        formFields,
+        jobTitle: jobInfo.title || '',
+        company: jobInfo.company || '',
+        profileOverrides: editedFields,   // inline edits from the review card
+      },
+    }).catch(() => null)
+
+    if (!autofillRes?.fields) {
+      if (fillBtn) { fillBtn.disabled = false; fillBtn.textContent = 'Fill form ✓'; fillBtn.style.opacity = '1' }
+      showMsg('Autofill failed. Try again.', 'error')
+      return
+    }
+
+    filledCount = fillFormFields(autofillRes.fields)
+
+    coverLetterPasted = false
+    if (coverLetterText) {
+      // Find a visible textarea that likely is the cover letter field
+      const textareas = Array.from(document.querySelectorAll('textarea:not([disabled])'))
+        .filter(el => {
+          const label = getFieldLabel(el).toLowerCase()
+          return label.includes('cover') || label.includes('letter') || label.includes('why') || label.includes('motivation')
+        })
+      if (textareas.length > 0) {
+        const proto = window.HTMLTextAreaElement.prototype
+        const nativeSetter = Object.getOwnPropertyDescriptor(proto, 'value').set
+        nativeSetter.call(textareas[0], coverLetterText)
+        textareas[0].dispatchEvent(new Event('input', { bubbles: true }))
+        textareas[0].dispatchEvent(new Event('change', { bubbles: true }))
+        coverLetterPasted = true
+        filledCount++
+      }
+    }
+
+    autofillStep = 'done'
+    render()
   }
 
   async function handleApply() {
