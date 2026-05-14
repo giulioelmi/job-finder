@@ -469,14 +469,15 @@
     return active_job
   }
 
-  async function setActiveJob({ title, company }) {
+  async function setActiveJob({ title, company, jobDescription }) {
     if (!chrome?.storage?.local) return
     await chrome.storage.local.set({
       active_job: {
         title, company,
-        url:         window.location.href,
-        origin:      window.location.origin,
-        extractedAt: Date.now(),
+        url:            window.location.href,
+        origin:         window.location.origin,
+        extractedAt:    Date.now(),
+        jobDescription: jobDescription || '',
       },
     })
   }
@@ -945,13 +946,14 @@
 
     if (coverLetterOn) {
       if (fillBtn) fillBtn.textContent = 'Generating cover letter…'
+      const activeJobForCL = await getActiveJob()
       const clRes = await chrome.runtime.sendMessage({
         type: 'COVER_LETTER',
         data: {
           profileId: selectedProfile.id,
           jobTitle: jobInfo.title || '',
           company: jobInfo.company || '',
-          jobContext: filterPageForLLM(),
+          jobContext: activeJobForCL?.jobDescription || filterPageForLLM(),
           customPrompt: selectedProfile.cover_letter_prompt || '',
         },
       }).catch(() => null)
@@ -1293,7 +1295,7 @@
     if (ld?.is_job_page) {
       jobInfo = { title: ld.title, company: ld.company, url }
       await setUrlCache(url, ld)
-      await setActiveJob(ld)
+      await setActiveJob({ ...ld, jobDescription: filterPageForLLM() })
       return
     }
 
@@ -1330,7 +1332,7 @@
     if (result?.is_job_page) {
       jobInfo = { title: result.title, company: result.company, url }
       await setUrlCache(url, result)
-      await setActiveJob(result)
+      await setActiveJob({ ...result, jobDescription: text })
     } else if (result?.error) {
       // Auth / network error — don't cache, don't hide; leave fields empty
       // so the user can still fill them in manually and retry on next visit.
