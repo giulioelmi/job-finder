@@ -162,17 +162,22 @@ export function ProfileForm({ initialProfile }: ProfileFormProps) {
     if (file.size > 5 * 1024 * 1024) { setResumeError('File too large (max 5 MB)'); return }
     setResumeUploading(true)
     setResumeError(null)
-    const form = new FormData()
-    form.append('file', file)
-    const res = await fetch(`/api/profiles/${initialProfile.id}/resume`, { method: 'PUT', body: form })
-    setResumeUploading(false)
-    if (res.ok) {
-      const data = await res.json()
-      setResumeUrl(data.resume_url)
-      setResumeFilename(file.name)
-    } else {
-      const data = await res.json().catch(() => ({}))
-      setResumeError(data.error ?? 'Upload failed')
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      const res = await fetch(`/api/profiles/${initialProfile.id}/resume`, { method: 'PUT', body: form })
+      if (res.ok) {
+        const data = await res.json()
+        setResumeUrl(data.resume_url)
+        setResumeFilename(file.name)
+      } else {
+        const data = await res.json().catch(() => ({}))
+        setResumeError(data.error ?? 'Upload failed')
+      }
+    } catch {
+      setResumeError('Network error — please check your connection')
+    } finally {
+      setResumeUploading(false)
     }
   }
 
@@ -180,13 +185,18 @@ export function ProfileForm({ initialProfile }: ProfileFormProps) {
     if (!initialProfile?.id) return
     setResumeUploading(true)
     setResumeError(null)
-    const res = await fetch(`/api/profiles/${initialProfile.id}/resume`, { method: 'DELETE' })
-    setResumeUploading(false)
-    if (res.ok) {
-      setResumeUrl(null)
-      setResumeFilename(null)
-    } else {
-      setResumeError('Failed to remove resume')
+    try {
+      const res = await fetch(`/api/profiles/${initialProfile.id}/resume`, { method: 'DELETE' })
+      if (res.ok) {
+        setResumeUrl(null)
+        setResumeFilename(null)
+      } else {
+        setResumeError('Failed to remove resume')
+      }
+    } catch {
+      setResumeError('Network error — please check your connection')
+    } finally {
+      setResumeUploading(false)
     }
   }
 
@@ -519,7 +529,7 @@ export function ProfileForm({ initialProfile }: ProfileFormProps) {
               </button>
             </div>
           ) : (
-            <label className={`flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-8 cursor-pointer transition-colors ${resumeUploading ? 'opacity-50 cursor-not-allowed border-gray-300' : 'border-gray-300 hover:border-green-600 hover:bg-green-50'}`}>
+            <label className={`flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-8 transition-colors ${resumeUploading ? 'opacity-50 cursor-not-allowed pointer-events-none border-gray-300' : 'cursor-pointer border-gray-300 hover:border-green-600 hover:bg-green-50'}`}>
               <span className="text-3xl mb-2">📄</span>
               <span className="text-sm font-medium text-gray-700 mb-1">{resumeUploading ? 'Uploading…' : 'Upload your resume'}</span>
               <span className="text-xs text-gray-400 mb-4">PDF, DOC, or DOCX · max 5 MB</span>
