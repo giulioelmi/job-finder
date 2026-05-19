@@ -612,9 +612,8 @@
   let autofillProfiles  = []
   let selectedProfile   = null
   let editedFields      = {}     // field key → edited value overrides
-  let coverLetterOn     = false
   let filledCount       = 0
-  let coverLetterPasted = false
+  let resumeAttached    = false
 
   // ─── Helpers ──────────────────────────────────────────────────────────────
 
@@ -899,7 +898,6 @@
       if (selectedIdx < 0) return
       selectedProfile = autofillProfiles[selectedIdx]
       editedFields = {}
-      coverLetterOn = false
       autofillStep = 'review'
       setAutofillSession(selectedProfile.id, {})
       render()
@@ -948,23 +946,16 @@
               </div>
             </div>`).join('')}
         </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;
-          background:#f9fafb;border:1.5px solid #e5e7eb;border-radius:8px;padding:8px 10px;margin-bottom:10px;">
-          <span style="font-size:11px;font-weight:600;color:#374151;">Generate cover letter</span>
-          <div id="cl-toggle" style="
-            width:32px;height:18px;background:${coverLetterOn ? '#15803d' : '#d1d5db'};
-            border-radius:9px;position:relative;cursor:pointer;">
-            <div style="width:14px;height:14px;background:#fff;border-radius:50%;position:absolute;
-              top:2px;${coverLetterOn ? 'right:2px' : 'left:2px'};transition:left 0.15s,right 0.15s;"></div>
-          </div>
-        </div>
         ${msgHtml()}
-        <div style="display:flex;gap:7px;">
+        <div style="display:flex;gap:7px;margin-bottom:7px;">
           <button id="af-back" style="flex:1;padding:8px;background:#f3f4f6;color:#374151;border:none;
             border-radius:8px;font-size:11px;font-weight:500;cursor:pointer;font-family:inherit;">← Back</button>
           <button id="af-fill" style="flex:2;padding:8px;background:#15803d;color:#fff;border:none;
             border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">Fill form ✓</button>
         </div>
+        <button id="cl-btn" style="
+          width:100%;padding:9px;background:#fff;color:#374151;border:1.5px solid #d1d5db;
+          border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;">✉ Generate cover letter →</button>
         <button id="minimize" style="
           width:100%;padding:6px;background:none;color:#9ca3af;border:none;
           border-radius:7px;font-size:12px;cursor:pointer;margin-top:6px;font-family:inherit;">Minimize</button>
@@ -991,13 +982,32 @@
       })
     }
 
-    shadow.getElementById('cl-toggle').onclick = () => {
-      saveCurrentFields()   // preserve in-progress edits before re-render
-      coverLetterOn = !coverLetterOn
-      render()
-    }
-
     shadow.getElementById('af-fill').onclick = () => { saveCurrentFields(); handleFill() }
+
+    const clBtn = shadow.getElementById('cl-btn')
+    clBtn.onclick = async () => {
+      saveCurrentFields()
+      clBtn.disabled = true
+      clBtn.textContent = 'Generating…'
+      clBtn.style.opacity = '0.7'
+      const activeJobForCL = await getActiveJob()
+      const clRes = await chrome.runtime.sendMessage({
+        type: 'OPEN_COVER_LETTER',
+        data: {
+          profileId: selectedProfile.id,
+          jobTitle: jobInfo.title || '',
+          company: jobInfo.company || '',
+          jobContext: activeJobForCL?.jobDescription || filterPageForLLM(),
+          customPrompt: selectedProfile.cover_letter_prompt || '',
+        },
+      }).catch(() => null)
+      clBtn.disabled = false
+      clBtn.textContent = '✉ Generate cover letter →'
+      clBtn.style.opacity = '1'
+      if (clRes?.error) {
+        showMsg(clRes.error === 'NOT_LOGGED_IN' ? 'Log in first.' : 'Cover letter failed. Try again.', 'error')
+      }
+    }
   }
 
   function renderAutofillDone() {
@@ -1010,7 +1020,7 @@
           <div style="font-weight:700;font-size:14px;color:#15803d;margin-bottom:4px;">Form filled!</div>
           <div style="font-size:11px;color:#6b7280;line-height:1.6;">
             ${filledCount} field${filledCount !== 1 ? 's' : ''} filled
-            ${coverLetterPasted ? '· cover letter pasted' : ''}
+            ${resumeAttached ? '· resume attached' : ''}
           </div>
         </div>
         ${msgHtml()}
@@ -1034,24 +1044,6 @@
 
     const formFields = scanFormFields()
 
-    let coverLetterText = null
-
-    if (coverLetterOn) {
-      if (fillBtn) fillBtn.textContent = 'Generating cover letter…'
-      const activeJobForCL = await getActiveJob()
-      const clRes = await chrome.runtime.sendMessage({
-        type: 'COVER_LETTER',
-        data: {
-          profileId: selectedProfile.id,
-          jobTitle: jobInfo.title || '',
-          company: jobInfo.company || '',
-          jobContext: activeJobForCL?.jobDescription || filterPageForLLM(),
-          customPrompt: selectedProfile.cover_letter_prompt || '',
-        },
-      }).catch(() => null)
-      if (clRes?.cover_letter) coverLetterText = clRes.cover_letter
-    }
-
     if (fillBtn) fillBtn.textContent = 'Filling…'
 
     const autofillRes = await chrome.runtime.sendMessage({
@@ -1061,7 +1053,7 @@
         formFields,
         jobTitle: jobInfo.title || '',
         company: jobInfo.company || '',
-        profileOverrides: editedFields,   // inline edits from the review card
+        profileOverrides: editedFields,
       },
     }).catch(() => null)
 
@@ -1073,22 +1065,28 @@
 
     filledCount = await fillFormFields(autofillRes.fields)
 
-    coverLetterPasted = false
-    if (coverLetterText) {
-      // Find a visible textarea that likely is the cover letter field
-      const textareas = Array.from(document.querySelectorAll('textarea:not([disabled])'))
-        .filter(el => {
-          const label = getFieldLabel(el).toLowerCase()
-          return label.includes('cover') || label.includes('letter') || label.includes('why') || label.includes('motivation')
-        })
-      if (textareas.length > 0) {
-        const proto = window.HTMLTextAreaElement.prototype
-        const nativeSetter = Object.getOwnPropertyDescriptor(proto, 'value').set
-        nativeSetter.call(textareas[0], coverLetterText)
-        textareas[0].dispatchEvent(new Event('input', { bubbles: true }))
-        textareas[0].dispatchEvent(new Event('change', { bubbles: true }))
-        coverLetterPasted = true
-        filledCount++
+    resumeAttached = false
+    if (selectedProfile.resume_url) {
+      const fileInputs = Array.from(document.querySelectorAll('input[type="file"]'))
+        .filter(el => isVisible(el) && /resume|cv|upload/i.test(getFieldLabel(el)))
+      if (fileInputs.length > 0) {
+        const resumeRes = await chrome.runtime.sendMessage({
+          type: 'GET_RESUME',
+          data: { profileId: selectedProfile.id },
+        }).catch(() => null)
+        if (resumeRes?.base64) {
+          try {
+            const bytes = Uint8Array.from(atob(resumeRes.base64), c => c.charCodeAt(0))
+            const blob = new Blob([bytes], { type: resumeRes.mimeType })
+            const file = new File([blob], resumeRes.filename, { type: resumeRes.mimeType })
+            const dt = new DataTransfer()
+            dt.items.add(file)
+            fileInputs[0].files = dt.files
+            fileInputs[0].dispatchEvent(new Event('change', { bubbles: true }))
+            resumeAttached = true
+            filledCount++
+          } catch (_) {}
+        }
       }
     }
 
