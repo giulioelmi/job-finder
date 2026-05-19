@@ -339,7 +339,7 @@ export function ProfileForm({ initialProfile }: ProfileFormProps) {
       <Card>
         <CardHeader>
           <CardTitle>DEI</CardTitle>
-          <p className="text-sm text-gray-500 mt-1">Leave blank to answer "Prefer not to say" on applications.</p>
+          <p className="text-sm text-gray-500 mt-1">Leave blank to answer &ldquo;Prefer not to say&rdquo; on applications.</p>
         </CardHeader>
         <CardContent className="grid grid-cols-2 gap-4">
           <Field label="Gender">
