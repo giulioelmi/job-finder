@@ -1024,8 +1024,12 @@
           </div>
         </div>
         ${msgHtml()}
-        <button id="apply-btn" style="
+        <button id="next-page-btn" style="
           width:100%;padding:9px;background:#15803d;color:#fff;border:none;
+          border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;
+          font-family:inherit;margin-bottom:6px;">Fill next page →</button>
+        <button id="apply-btn" style="
+          width:100%;padding:9px;background:#fff;color:#15803d;border:1.5px solid #15803d;
           border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;
           font-family:inherit;margin-bottom:6px;">✓ Mark as Applied</button>
         <button id="minimize" style="
@@ -1035,6 +1039,7 @@
 
     shadow.getElementById('close').onclick = () => { dismissed = true; render() }
     shadow.getElementById('minimize').onclick = () => { expanded = false; render() }
+    shadow.getElementById('next-page-btn').onclick = () => { autofillStep = 'review'; render() }
     shadow.getElementById('apply-btn').onclick = handleApply
   }
 
