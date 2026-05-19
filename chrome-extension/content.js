@@ -462,7 +462,7 @@
   async function setAutofillSession(profileId, fields) {
     if (!chrome?.storage?.local) return
     await chrome.storage.local.set({
-      autofill_session: { profileId, editedFields: fields, savedAt: Date.now() },
+      autofill_session: { profileId, editedFields: fields, savedAt: Date.now(), origin: window.location.origin },
     })
   }
 
@@ -1510,7 +1510,8 @@
     // restores on continuation pages even when activeJob is not yet set.
     const session = await getAutofillSession()
     const activeJob = await getActiveJob()
-    if (!isJobPage() && !activeJob && !session) return   // plain non-job page — show nothing
+    const sessionOnThisSite = session?.origin === window.location.origin
+    if (!isJobPage() && !activeJob && !sessionOnThisSite) return   // plain non-job page — show nothing
 
     // Restore autofill session on multi-page flows
     if (session) {
