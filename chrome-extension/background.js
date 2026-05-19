@@ -47,6 +47,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     generateCoverLetter(message.data).then(sendResponse)
     return true
   }
+  if (message.type === 'GET_RESUME') {
+    getResume(message.data).then(sendResponse)
+    return true
+  }
+  if (message.type === 'OPEN_COVER_LETTER') {
+    openCoverLetter(message.data).then(sendResponse)
+    return true
+  }
 })
 } // end chrome.runtime.onMessage guard
 
@@ -228,6 +236,44 @@ async function generateCoverLetter({ profileId, jobTitle, company, jobContext, c
   } catch (e) {
     return { error: 'Network error — check your connection' }
   }
+}
+
+async function getResume({ profileId }) {
+  const { token } = await getValidToken()
+  if (!token) return { error: 'NOT_LOGGED_IN' }
+
+  try {
+    const metaRes = await fetch(`${APP_URL}/api/profiles/${profileId}/resume`, {
+      headers: { 'Authorization': `Bearer ${token}` },
+    })
+    const meta = await metaRes.json().catch(() => ({}))
+    if (!metaRes.ok) return { error: meta.error || `Server error (${metaRes.status})` }
+
+    const { signed_url, filename } = meta
+    const fileRes = await fetch(signed_url)
+    if (!fileRes.ok) return { error: 'Failed to fetch resume file' }
+
+    const mimeType = fileRes.headers.get('Content-Type') || 'application/octet-stream'
+    const buffer = await fileRes.arrayBuffer()
+    const bytes = new Uint8Array(buffer)
+    let binary = ''
+    for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i])
+    const base64 = btoa(binary)
+    return { base64, mimeType, filename }
+  } catch (e) {
+    return { error: 'Network error — check your connection' }
+  }
+}
+
+async function openCoverLetter({ profileId, jobTitle, company, jobContext, customPrompt }) {
+  const result = await generateCoverLetter({ profileId, jobTitle, company, jobContext, customPrompt })
+  if (result.error) return { error: result.error }
+
+  await chrome.storage.local.set({
+    cover_letter_draft: { coverLetter: result.cover_letter, jobTitle, company },
+  })
+  chrome.tabs.create({ url: `${APP_URL}/cover-letter` })
+  return { success: true }
 }
 
 async function trackApplication({ title, company, url }) {
