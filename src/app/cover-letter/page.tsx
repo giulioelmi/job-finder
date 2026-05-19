@@ -45,7 +45,17 @@ export default function CoverLetterPage() {
 <meta charset="utf-8">
 <title>Cover Letter</title>
 <style>
-  body { font-family: 'Times New Roman', Times, serif; font-size: 12pt; margin: 1in; white-space: pre-wrap; color: #000; }
+  @page { margin: 0; size: letter; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: 'Times New Roman', Times, serif;
+    font-size: 12pt;
+    line-height: 1.4;
+    padding: 1in;
+    white-space: pre-wrap;
+    color: #000;
+    box-sizing: border-box;
+  }
 </style>
 </head>
 <body>${text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</body>
