@@ -101,6 +101,12 @@ export function ProfileForm({ initialProfile }: ProfileFormProps) {
   const [skillInput, setSkillInput] = useState('')
   const [customQA, setCustomQA] = useState<CustomQAEntry[]>(initialProfile?.custom_qa ?? [])
   const [coverLetterPrompt, setCoverLetterPrompt] = useState(initialProfile?.cover_letter_prompt ?? '')
+  const [resumeUrl, setResumeUrl] = useState<string | null>(initialProfile?.resume_url ?? null)
+  const [resumeFilename, setResumeFilename] = useState<string | null>(
+    initialProfile?.resume_url ? (initialProfile.resume_url.split('/').pop() ?? null) : null
+  )
+  const [resumeUploading, setResumeUploading] = useState(false)
+  const [resumeError, setResumeError] = useState<string | null>(null)
 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -149,6 +155,39 @@ export function ProfileForm({ initialProfile }: ProfileFormProps) {
   }
   function removeQA(i: number) {
     setCustomQA(prev => prev.filter((_, idx) => idx !== i))
+  }
+
+  async function handleResumeUpload(file: File) {
+    if (!initialProfile?.id) return
+    if (file.size > 5 * 1024 * 1024) { setResumeError('File too large (max 5 MB)'); return }
+    setResumeUploading(true)
+    setResumeError(null)
+    const form = new FormData()
+    form.append('file', file)
+    const res = await fetch(`/api/profiles/${initialProfile.id}/resume`, { method: 'PUT', body: form })
+    setResumeUploading(false)
+    if (res.ok) {
+      const data = await res.json()
+      setResumeUrl(data.resume_url)
+      setResumeFilename(file.name)
+    } else {
+      const data = await res.json().catch(() => ({}))
+      setResumeError(data.error ?? 'Upload failed')
+    }
+  }
+
+  async function handleResumeRemove() {
+    if (!initialProfile?.id) return
+    setResumeUploading(true)
+    setResumeError(null)
+    const res = await fetch(`/api/profiles/${initialProfile.id}/resume`, { method: 'DELETE' })
+    setResumeUploading(false)
+    if (res.ok) {
+      setResumeUrl(null)
+      setResumeFilename(null)
+    } else {
+      setResumeError('Failed to remove resume')
+    }
   }
 
   async function handleSave() {
@@ -455,6 +494,52 @@ export function ProfileForm({ initialProfile }: ProfileFormProps) {
           {customQA.length === 0 && <p className="text-sm text-gray-400">No entries yet.</p>}
         </CardContent>
       </Card>
+
+      {/* Resume */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div className="px-6 py-4 border-b border-gray-100">
+          <h3 className="text-lg font-semibold text-gray-900">Resume</h3>
+          <p className="text-sm text-gray-500 mt-1">Uploaded file will be automatically attached to job applications.</p>
+        </div>
+        <div className="px-6 py-4">
+          {!isEditing ? (
+            <p className="text-sm text-gray-400">Save this profile first, then come back to upload a resume.</p>
+          ) : resumeUrl ? (
+            <div className="flex items-center gap-3 border border-gray-200 rounded-lg p-3">
+              <span className="text-2xl">📄</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-900 truncate">{resumeFilename}</p>
+              </div>
+              <button
+                onClick={handleResumeRemove}
+                disabled={resumeUploading}
+                className="text-sm text-red-500 hover:text-red-700 font-medium disabled:opacity-50"
+              >
+                {resumeUploading ? 'Removing…' : 'Remove'}
+              </button>
+            </div>
+          ) : (
+            <label className={`flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-8 cursor-pointer transition-colors ${resumeUploading ? 'opacity-50 cursor-not-allowed border-gray-300' : 'border-gray-300 hover:border-green-600 hover:bg-green-50'}`}>
+              <span className="text-3xl mb-2">📄</span>
+              <span className="text-sm font-medium text-gray-700 mb-1">{resumeUploading ? 'Uploading…' : 'Upload your resume'}</span>
+              <span className="text-xs text-gray-400 mb-4">PDF, DOC, or DOCX · max 5 MB</span>
+              <span className="bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-semibold">Choose file</span>
+              <input
+                type="file"
+                accept=".pdf,.doc,.docx"
+                className="hidden"
+                disabled={resumeUploading}
+                onChange={e => {
+                  const file = e.target.files?.[0]
+                  if (file) handleResumeUpload(file)
+                  e.target.value = ''
+                }}
+              />
+            </label>
+          )}
+          {resumeError && <p className="text-sm text-red-500 mt-2">{resumeError}</p>}
+        </div>
+      </div>
 
       {/* Cover letter prompt */}
       <Card>
