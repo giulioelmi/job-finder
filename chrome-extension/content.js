@@ -1483,12 +1483,15 @@
     }
 
     // ── Job tracking flow ──────────────────────────────────────────────────
+
+    // Check for active autofill session before the early-return so the card
+    // restores on continuation pages even when activeJob is not yet set.
+    const session = await getAutofillSession()
     const activeJob = await getActiveJob()
-    if (!isJobPage() && !activeJob) return   // plain non-job page — show nothing
+    if (!isJobPage() && !activeJob && !session) return   // plain non-job page — show nothing
 
     // Restore autofill session on multi-page flows
-    const session = await getAutofillSession()
-    if (session && activeJob) {
+    if (session) {
       const profilesRes = await chrome.runtime.sendMessage({ type: 'GET_PROFILES' }).catch(() => null)
       if (profilesRes?.profiles) {
         const profile = profilesRes.profiles.find(p => p.id === session.profileId)
