@@ -1090,7 +1090,6 @@
       }
     }
 
-    await clearAutofillSession()
     autofillStep = 'done'
     render()
   }
@@ -1117,6 +1116,7 @@
 
     if (response.success) {
       await clearActiveJob()
+      await clearAutofillSession()
       btn.style.background = '#16a34a'; btn.style.opacity = '1'; btn.textContent = '✓ Added to Bamboo!'
       showMsg(`"${title}" saved to your applications.`, 'success')
       setTimeout(() => { expanded = false; dismissed = true; render() }, 2200)
