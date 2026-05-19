@@ -33,13 +33,31 @@ export async function PUT(
   if (file.size > 5 * 1024 * 1024)
     return NextResponse.json({ error: 'File too large (max 5 MB)' }, { status: 400 })
 
+  const MIME_MAP: Record<string, string> = {
+    pdf: 'application/pdf',
+    doc: 'application/msword',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  }
+
   const service = createServiceClient()
   const path = `${userId}/${id}/resume.${ext}`
+
+  const { data: existing } = await service
+    .from('autofill_profiles')
+    .select('resume_url')
+    .eq('id', id)
+    .eq('user_id', userId)
+    .single()
+
+  if (existing?.resume_url && existing.resume_url !== path) {
+    await service.storage.from('resumes').remove([existing.resume_url])
+  }
+
   const arrayBuffer = await file.arrayBuffer()
 
   const { error: uploadError } = await service.storage
     .from('resumes')
-    .upload(path, arrayBuffer, { contentType: file.type, upsert: true })
+    .upload(path, arrayBuffer, { contentType: MIME_MAP[ext], upsert: true })
 
   if (uploadError)
     return NextResponse.json({ error: uploadError.message }, { status: 500 })
@@ -76,6 +94,9 @@ export async function GET(
   if (!profile?.resume_url)
     return NextResponse.json({ error: 'No resume uploaded' }, { status: 404 })
 
+  if (!profile.resume_url.startsWith(`${userId}/`))
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
   const { data, error } = await service.storage
     .from('resumes')
     .createSignedUrl(profile.resume_url, 3600)
@@ -105,7 +126,13 @@ export async function DELETE(
     .single()
 
   if (profile?.resume_url) {
-    await service.storage.from('resumes').remove([profile.resume_url])
+    if (!profile.resume_url.startsWith(`${userId}/`))
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+    const { error: removeError } = await service.storage.from('resumes').remove([profile.resume_url])
+    if (removeError) {
+      console.error('[resume DELETE] Storage removal failed:', removeError.message)
+    }
   }
 
   await service
