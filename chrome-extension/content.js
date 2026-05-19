@@ -1455,10 +1455,14 @@
     } else if (activeJob) {
       // LLM says "not a job page" but we're mid-flow — stick with active_job
       jobInfo = { title: activeJob.title, company: activeJob.company, url }
-    } else {
-      // Not a job page and nothing in flight — hide the button
+    } else if (!isJobPage()) {
+      // LLM and heuristics both say not a job page — hide the button
       dismissed = true
       await setUrlCache(url, { is_job_page: false, title: '', company: '' })
+    } else {
+      // Heuristics flagged it as a job page but LLM disagrees — trust the heuristic,
+      // leave fields empty for the user to fill in manually.
+      if (!jobInfo.title) jobInfo = { title: '', company: '', url }
     }
 
     render()
