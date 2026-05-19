@@ -1010,6 +1010,16 @@
     }
   }
 
+  function findNextButton() {
+    const pattern = /^(next|continue|next step|next page|save (&amp;|and) continue|proceed|forward|go to next|save &amp; next)$/i
+    const candidates = Array.from(document.querySelectorAll('button, input[type="submit"], input[type="button"], a[role="button"]'))
+    return candidates.find(el => {
+      if (!isVisible(el)) return false
+      const text = (el.textContent || el.value || el.getAttribute('aria-label') || '').trim().replace(/\s+/g, ' ')
+      return pattern.test(text)
+    }) || null
+  }
+
   function renderAutofillDone() {
     shadow.innerHTML = `
       <div id="card" style="${CARD_STYLE}">
@@ -1039,7 +1049,14 @@
 
     shadow.getElementById('close').onclick = () => { dismissed = true; render() }
     shadow.getElementById('minimize').onclick = () => { expanded = false; render() }
-    shadow.getElementById('next-page-btn').onclick = () => { autofillStep = 'review'; render() }
+    shadow.getElementById('next-page-btn').onclick = () => {
+      autofillStep = 'review'
+      expanded = false
+      render()
+      // Click the form's Next/Continue button so the page advances automatically
+      const nextBtn = findNextButton()
+      if (nextBtn) nextBtn.click()
+    }
     shadow.getElementById('apply-btn').onclick = handleApply
   }
 
