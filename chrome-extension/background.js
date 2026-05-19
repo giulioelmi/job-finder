@@ -16,7 +16,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true
   }
   if (message.type === 'LOGOUT') {
-    chrome.storage.local.remove(['access_token', 'refresh_token', 'user_email', 'token_expires_at', 'profiles_cache'])
+    chrome.storage.local.remove(['access_token', 'refresh_token', 'user_email', 'token_expires_at'])
     sendResponse({ success: true })
   }
   if (message.type === 'GET_AUTH') {
@@ -168,16 +168,9 @@ async function extractJob({ text, url }) {
   }
 }
 
-const PROFILES_CACHE_TTL_MS = 5 * 60 * 1000
-
 async function getProfiles() {
   const { token } = await getValidToken()
   if (!token) return { error: 'NOT_LOGGED_IN' }
-
-  const { profiles_cache } = await chrome.storage.local.get(['profiles_cache'])
-  if (profiles_cache && Date.now() - profiles_cache.cachedAt < PROFILES_CACHE_TTL_MS) {
-    return { profiles: profiles_cache.profiles }
-  }
 
   try {
     const res = await fetch(`${APP_URL}/api/profiles`, {
@@ -185,7 +178,6 @@ async function getProfiles() {
     })
     const body = await res.json().catch(() => ({}))
     if (!res.ok) return { error: body.error || `Server error (${res.status})` }
-    await chrome.storage.local.set({ profiles_cache: { profiles: body.profiles, cachedAt: Date.now() } })
     return { profiles: body.profiles }
   } catch (e) {
     return { error: 'Network error — check your connection' }
