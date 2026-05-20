@@ -55,6 +55,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     openCoverLetter(message.data).then(sendResponse)
     return true
   }
+  if (message.type === 'AGENT_FILL') {
+    agentFill(message.data).then(sendResponse)
+    return true
+  }
 })
 } // end chrome.runtime.onMessage guard
 
@@ -206,6 +210,32 @@ async function autofill({ profileId, formFields, jobTitle, company, profileOverr
     const body = await res.json().catch(() => ({}))
     if (!res.ok) return { error: body.error || `Server error (${res.status})` }
     return { fields: body.fields }
+  } catch (e) {
+    return { error: 'Network error — check your connection' }
+  }
+}
+
+async function agentFill({ profileId, snapshot, history, jobContext }) {
+  const { token } = await getValidToken()
+  if (!token) return { error: 'NOT_LOGGED_IN' }
+
+  try {
+    const res = await fetch(`${APP_URL}/api/extension/agent-fill`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        profile_id: profileId,
+        snapshot,
+        history: history || [],
+        job_context: jobContext || '',
+      }),
+    })
+    const body = await res.json().catch(() => ({}))
+    if (!res.ok) return { error: body.error || `Server error (${res.status})` }
+    return { actions: body.actions, done: body.done, reasoning: body.reasoning }
   } catch (e) {
     return { error: 'Network error — check your connection' }
   }
