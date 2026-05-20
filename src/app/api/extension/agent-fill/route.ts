@@ -131,12 +131,16 @@ export async function POST(req: NextRequest) {
     const raw = data?.choices?.[0]?.message?.content
     if (!raw) return NextResponse.json({ actions: [{ type: 'done' }], done: true, reasoning: 'Empty response' })
 
-    const parsed = JSON.parse(raw) as { actions?: unknown[]; done?: boolean; reasoning?: string }
-    return NextResponse.json({
-      actions: parsed.actions ?? [{ type: 'done' }],
-      done: parsed.done ?? false,
-      reasoning: parsed.reasoning ?? '',
-    })
+    try {
+      const parsed = JSON.parse(raw) as { actions?: unknown[]; done?: boolean; reasoning?: string }
+      return NextResponse.json({
+        actions: parsed.actions ?? [{ type: 'done' }],
+        done: parsed.done ?? false,
+        reasoning: parsed.reasoning ?? '',
+      })
+    } catch {
+      return NextResponse.json({ actions: [{ type: 'done' }], done: true, reasoning: 'Parse error' })
+    }
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e)
     return NextResponse.json({ error: 'AGENT_FILL_FAILED', detail }, { status: 500 })
