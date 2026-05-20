@@ -222,6 +222,36 @@
     return fields
   }
 
+  function buildAgentSnapshot() {
+    // Clear previous annotations
+    document.querySelectorAll('[data-bamboo-idx]').forEach(el => el.removeAttribute('data-bamboo-idx'))
+
+    const QUERY =
+      'input:not([type="hidden"]):not([type="submit"]):not([type="button"])' +
+      ':not([type="image"]):not([type="file"]):not([disabled]),' +
+      'select:not([disabled]),' +
+      'textarea:not([disabled]),' +
+      'button:not([disabled]),' +
+      'a[role="button"],' +
+      '[role="combobox"]:not([disabled])'
+
+    const els = Array.from(document.querySelectorAll(QUERY)).filter(isVisible)
+    const lines = []
+
+    els.forEach((el, i) => {
+      el.setAttribute('data-bamboo-idx', String(i))
+      const tag   = el.tagName.toLowerCase()
+      const type  = el.getAttribute('type') || el.getAttribute('role') || tag
+      const label = getFieldLabel(el) || el.textContent?.trim().replace(/\s+/g, ' ').slice(0, 60) || ''
+      const name  = el.name || el.id || ''
+      let line    = `[${type}] "${label}" bamboo=${i}`
+      if (name) line += ` name="${name}"`
+      lines.push(line)
+    })
+
+    return lines.join('\n')
+  }
+
   // ─── Field filler ─────────────────────────────────────────────────────────
 
   async function fillFormFields(mappings) {
