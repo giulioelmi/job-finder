@@ -1117,6 +1117,10 @@
 
     filledCount = await fillFormFields(autofillRes.fields)
 
+    const fillBtn2 = shadow.getElementById('af-fill')
+    if (fillBtn2) fillBtn2.textContent = 'Agent filling…'
+    await runAgentFill()
+
     resumeAttached = false
     if (selectedProfile.resume_url) {
       const fileInputs = Array.from(document.querySelectorAll('input[type="file"]'))
@@ -1144,6 +1148,53 @@
 
     autofillStep = 'done'
     render()
+  }
+
+  async function runAgentFill() {
+    const MAX_ITER = 10
+    const history = []
+
+    for (let iter = 0; iter < MAX_ITER; iter++) {
+      const snapshot = buildAgentSnapshot()
+
+      const result = await chrome.runtime.sendMessage({
+        type: 'AGENT_FILL',
+        data: {
+          profileId: selectedProfile.id,
+          snapshot,
+          history,
+          jobContext: jobInfo.title
+            ? `${jobInfo.title}${jobInfo.company ? ` at ${jobInfo.company}` : ''}`
+            : '',
+        },
+      }).catch(() => null)
+
+      if (!result?.actions?.length) break
+
+      const fillActions = []
+
+      for (const action of result.actions) {
+        if (action.type === 'click') {
+          const el = document.querySelector(action.selector)
+          if (el) el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+        } else if (action.type === 'wait') {
+          await new Promise(r => setTimeout(r, action.ms || 500))
+        } else if (action.type === 'fill') {
+          fillActions.push({ selector: action.selector, value: action.value })
+        }
+      }
+
+      if (fillActions.length) {
+        filledCount += await fillFormFields(fillActions)
+      }
+
+      history.push({ snapshot, actions: result.actions })
+
+      if (result.done) break
+
+      // Let DOM settle before next snapshot
+      await new Promise(r => setTimeout(r, 400))
+    }
   }
 
   async function handleApply() {
