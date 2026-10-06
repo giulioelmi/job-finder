@@ -5,6 +5,7 @@ import { getStatusColor } from '@/lib/utils'
 import { Briefcase, Bell, TrendingUp, Clock } from 'lucide-react'
 import Link from 'next/link'
 import ApplicationFlowDiagram from '@/components/dashboard/application-flow-diagram'
+import Achievements from '@/components/dashboard/achievements'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -84,8 +85,13 @@ export default async function DashboardPage() {
         ))}
       </div>
 
+      {/* Streak, daily goal and medals (saved jobs don't count as sent) */}
+      <Achievements
+        dates={applications.filter(a => a.status !== 'saved').map(a => a.created_at)}
+      />
+
       {/* Weekly Activity Chart */}
-      <Card className="mt-6">
+      <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
