@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -27,10 +27,11 @@ interface Match {
   resume_url: string | null
 }
 
-export function CareerProfileClient({ initialRow, plan, initialMatches }: {
+export function CareerProfileClient({ initialRow, plan, initialMatches, justUpgraded }: {
   initialRow: Row | null
   plan: string
   initialMatches: Match[]
+  justUpgraded: boolean
 }) {
   const router = useRouter()
   const [paths, setPaths] = useState(initialRow?.resume_paths ?? [])
@@ -38,7 +39,9 @@ export function CareerProfileClient({ initialRow, plan, initialMatches }: {
   const [enabled, setEnabled] = useState(initialRow?.agent_enabled ?? true)
   const [sendResumes, setSendResumes] = useState(initialRow?.send_resumes ?? true)
   const [busy, setBusy] = useState<string | null>(null)
-  const [message, setMessage] = useState('')
+  const [message, setMessage] = useState(
+    justUpgraded ? (plan === 'pro' ? 'Welcome to Pro! Your agent now runs every hour.' : 'Payment received. Activating your Pro plan…') : ''
+  )
 
   async function call(label: string, url: string, init: RequestInit) {
     setBusy(label)
@@ -52,10 +55,13 @@ export function CareerProfileClient({ initialRow, plan, initialMatches }: {
 
   async function upload(files: FileList | null) {
     if (!files?.length) return
-    const form = new FormData()
-    Array.from(files).forEach(f => form.append('files', f))
-    const data = await call('upload', '/api/career-profile/resumes', { method: 'POST', body: form })
-    if (data) setPaths(data.resume_paths)
+    for (const file of Array.from(files)) {
+      const form = new FormData()
+      form.append('files', file)
+      const data = await call('upload', '/api/career-profile/resumes', { method: 'POST', body: form })
+      if (!data) return
+      setPaths(data.resume_paths)
+    }
   }
 
   async function remove(path: string) {
@@ -70,10 +76,19 @@ export function CareerProfileClient({ initialRow, plan, initialMatches }: {
 
   async function runNow() {
     const data = await call('run', '/api/career-profile/run-now', { method: 'POST' })
-    if (data) {
-      setMessage(`Agent finished: ${data.matches} new match${data.matches === 1 ? '' : 'es'}.`)
-      router.refresh()
+    if (!data) return
+    if (data.status === 'skipped') {
+      const next = data.nextRunAt ? new Date(data.nextRunAt).toLocaleString() : 'later'
+      setMessage(`Your agent already ran recently. The ${plan === 'pro' ? 'Pro' : 'Free'} plan allows the next run at ${next}.`)
+      return
     }
+    setMessage(`Agent finished: ${data.matches} new match${data.matches === 1 ? '' : 'es'}.`)
+    router.refresh()
+  }
+
+  async function openBilling(endpoint: 'checkout' | 'portal') {
+    const data = await call('billing', `/api/billing/${endpoint}`, { method: 'POST' })
+    if (data?.url) window.location.href = data.url
   }
 
   async function toggle(field: 'agent_enabled' | 'send_resumes', value: boolean) {
@@ -86,6 +101,14 @@ export function CareerProfileClient({ initialRow, plan, initialMatches }: {
     })
   }
 
+  // Stripe can redirect back before its webhook lands, so check again for a few seconds after checkout
+  useEffect(() => {
+    if (!justUpgraded || plan === 'pro') return
+    let tries = 0
+    const timer = setInterval(() => { router.refresh(); if (++tries >= 5) clearInterval(timer) }, 2000)
+    return () => clearInterval(timer)
+  }, [justUpgraded, plan, router])
+
   const fileName = (p: string) => p.split('/').pop()!.replace(/^\d+_/, '')
 
   return (
@@ -94,7 +117,7 @@ export function CareerProfileClient({ initialRow, plan, initialMatches }: {
 
       <Card><CardContent className="p-6">
         <h2 className="font-semibold text-gray-900 mb-1">1. Your resumes</h2>
-        <p className="text-sm text-gray-500 mb-4">Upload up to 5 PDF resumes. Claude merges them into one profile.</p>
+        <p className="text-sm text-gray-500 mb-4">Upload up to 5 PDF resumes (4 MB each). Claude merges them into one profile.</p>
         <ul className="mb-4 space-y-2">
           {paths.map(p => (
             <li key={p} className="flex items-center justify-between text-sm bg-gray-50 rounded-lg px-3 py-2">
@@ -162,9 +185,18 @@ export function CareerProfileClient({ initialRow, plan, initialMatches }: {
           <input type="checkbox" checked={sendResumes} onChange={e => toggle('send_resumes', e.target.checked)} />
           Attach a tailored resume to each match
         </label>
-        <Button onClick={runNow} disabled={!profile || busy !== null}>
-          {busy === 'run' ? 'Agent is searching… (up to a few minutes)' : 'Run now'}
-        </Button>
+        <div className="flex flex-wrap gap-3">
+          <Button onClick={runNow} disabled={!profile || busy !== null}>
+            {busy === 'run' ? 'Agent is searching… (up to a few minutes)' : 'Run now'}
+          </Button>
+          {plan === 'pro' ? (
+            <Button variant="secondary" onClick={() => openBilling('portal')} disabled={busy !== null}>Manage billing</Button>
+          ) : (
+            <Button variant="secondary" onClick={() => openBilling('checkout')} disabled={busy !== null}>
+              Upgrade to Pro: hourly runs
+            </Button>
+          )}
+        </div>
         {initialRow?.last_agent_run_at && (
           <p className="text-xs text-gray-400 mt-2">Last run: {new Date(initialRow.last_agent_run_at).toLocaleString()}</p>
         )}

@@ -39,6 +39,9 @@ RESEND_FROM_EMAIL=noreply@yourdomain.com
 NEXT_PUBLIC_APP_URL=https://your-app.vercel.app
 CRON_SECRET=any-random-string-you-choose
 ANTHROPIC_API_KEY=            # AI job agent (Claude)
+STRIPE_SECRET_KEY=            # Pro plan billing
+STRIPE_PRICE_ID=              # price_... of the monthly Pro subscription
+STRIPE_WEBHOOK_SECRET=        # whsec_... of the /api/billing/webhook endpoint
 ```
 
 ### 4. Deploy to Vercel
@@ -89,3 +92,15 @@ catalog, LinkedIn (public guest API) and Indeed (DuckDuckGo `site:` search) with
 tools, saves strong matches, tailors a one-page DOCX resume for each, and emails them.
 Free users run every 12 hours, Pro users every hour (`user_settings.plan`).
 Run `supabase/migration_ai_agent.sql` to create the tables.
+
+## Billing (Stripe)
+
+1. In Stripe, create a product "Bamboo Pro" with a recurring monthly price and copy its `price_...` id into `STRIPE_PRICE_ID`.
+2. Put your API secret key in `STRIPE_SECRET_KEY`.
+3. Add a webhook endpoint `https://your-app.vercel.app/api/billing/webhook` for the events
+   `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`,
+   `customer.subscription.deleted`, and put its signing secret in `STRIPE_WEBHOOK_SECRET`.
+4. Enable the Customer Portal in Stripe settings so "Manage billing" works.
+
+Use Stripe test mode and the card `4242 4242 4242 4242` to try it. The webhook is the only thing that
+changes a user's plan (table `subscriptions`, read-only for users).

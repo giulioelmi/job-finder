@@ -11,7 +11,7 @@ const EntrySchema = z.object({
   tags: z.array(z.string()),
   facts: z.array(z.string()).describe('Raw facts exactly as written in the resumes, numbers unchanged'),
   angles: z.array(z.string()).describe('2-3 resume bullet phrasings angled for different role types'),
-  stars: z.number().int().describe('Strength rating 1-3'),
+  stars: z.union([z.literal(1), z.literal(2), z.literal(3)]).describe('Strength rating 1-3'), // a literal union: structured outputs reject min/max
   in_development: z.boolean().describe('True if the work is ongoing / not shipped'),
 })
 

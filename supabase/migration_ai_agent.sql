@@ -1,7 +1,21 @@
 -- AI job agent: career profile built from resumes, plan tier, and agent matches
 
-alter table user_settings add column if not exists plan text default 'free'
-  check (plan in ('free', 'pro'));
+-- Subscription state. Users can only read it: every write comes from the Stripe webhook
+-- (service role), so nobody can upgrade themselves through the Supabase client.
+create table if not exists subscriptions (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  plan text not null default 'free' check (plan in ('free', 'pro')),
+  stripe_customer_id text unique,
+  stripe_subscription_id text,
+  status text,
+  updated_at timestamptz default now()
+);
+
+alter table subscriptions enable row level security;
+
+drop policy if exists "Users can view own subscription" on subscriptions;
+create policy "Users can view own subscription" on subscriptions
+  for select using (auth.uid() = user_id);
 
 -- One career profile per user, built by Claude from all uploaded resumes
 create table if not exists career_profiles (
@@ -21,12 +35,8 @@ alter table career_profiles enable row level security;
 drop policy if exists "Users can view own career profile" on career_profiles;
 create policy "Users can view own career profile" on career_profiles
   for select using (auth.uid() = user_id);
-drop policy if exists "Users can insert own career profile" on career_profiles;
-create policy "Users can insert own career profile" on career_profiles
-  for insert with check (auth.uid() = user_id);
-drop policy if exists "Users can update own career profile" on career_profiles;
-create policy "Users can update own career profile" on career_profiles
-  for update using (auth.uid() = user_id);
+-- Select only: writes go through the API routes (service role) so users cannot
+-- reset last_agent_run_at and skip the schedule limit.
 
 drop trigger if exists update_career_profiles_updated_at on career_profiles;
 create trigger update_career_profiles_updated_at

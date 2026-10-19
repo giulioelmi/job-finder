@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { CareerProfileSchema } from '@/lib/ai/schemas'
 
 // Edit the profile JSON and the agent toggles.
@@ -24,7 +24,7 @@ export async function PATCH(req: NextRequest) {
   if (typeof body.agent_enabled === 'boolean') update.agent_enabled = body.agent_enabled
   if (typeof body.send_resumes === 'boolean') update.send_resumes = body.send_resumes
 
-  const { error } = await supabase
+  const { error } = await createServiceClient()
     .from('career_profiles')
     .upsert({ user_id: user.id, ...update }, { onConflict: 'user_id' })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

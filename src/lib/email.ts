@@ -94,6 +94,9 @@ export async function sendJobNotificationEmail(
   }
 }
 
+const escapeHtml = (text: string) =>
+  text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
 interface AgentMatchEmailJob extends EmailJob {
   reason: string
   score: number
@@ -102,7 +105,8 @@ interface AgentMatchEmailJob extends EmailJob {
 export async function sendAgentMatchEmail(
   to: string,
   jobs: AgentMatchEmailJob[],
-  attachments: { filename: string; content: Buffer }[]
+  attachments: { filename: string; content: Buffer }[],
+  name?: string
 ): Promise<void> {
   if (jobs.length === 0) return
   if (!process.env.RESEND_API_KEY) {
@@ -111,6 +115,8 @@ export async function sendAgentMatchEmail(
   }
   const resend = new Resend(process.env.RESEND_API_KEY)
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://jobbamboo.com'
+  const greeting = name ? `Hi ${escapeHtml(name)},` : 'Hi,'
+  const resumeLine = attachments.length > 0 ? '\n\nA tailored resume for each job is attached. Review it before you apply.' : ''
 
   const jobLines = jobs
     .map(job => `• ${job.title} - ${job.company} (${job.score}% fit)\n  ${job.reason}\n  ${job.url}`)
@@ -120,12 +126,12 @@ export async function sendAgentMatchEmail(
     .map(
       job => `<tr>
         <td style="padding:12px 0;border-bottom:1px solid #f3f4f6;">
-          <strong style="color:#111827;">${job.title}</strong>
-          <span style="color:#6b7280;font-size:14px;"> - ${job.company}</span>
+          <strong style="color:#111827;">${escapeHtml(job.title)}</strong>
+          <span style="color:#6b7280;font-size:14px;"> - ${escapeHtml(job.company)}</span>
           <span style="color:#15803d;font-size:13px;"> · ${job.score}% fit</span><br/>
-          <span style="color:#374151;font-size:14px;">${job.reason}</span><br/>
-          <span style="color:#9ca3af;font-size:13px;">${job.location ?? ''}</span><br/>
-          <a href="${job.url}" style="color:#2563eb;font-size:13px;text-decoration:none;">View job →</a>
+          <span style="color:#374151;font-size:14px;">${escapeHtml(job.reason)}</span><br/>
+          <span style="color:#9ca3af;font-size:13px;">${escapeHtml(job.location ?? '')}</span><br/>
+          <a href="${escapeHtml(job.url)}" style="color:#2563eb;font-size:13px;text-decoration:none;">View job →</a>
         </td>
       </tr>`
     )
@@ -139,10 +145,10 @@ export async function sendAgentMatchEmail(
     from: process.env.RESEND_FROM_EMAIL ?? 'JobBamboo <noreply@jobbamboo.com>',
     to,
     subject: `Your AI agent found ${jobs.length} job${jobs.length === 1 ? '' : 's'} for you`,
-    text: `Hi,\n\nYour Bamboo AI agent found these matches:\n\n${jobLines}\n\nSee all matches: ${appUrl}/career-profile`,
+    text: `${greeting}\n\nYour Bamboo AI agent found these matches:\n\n${jobLines}${resumeLine}\n\nSee all matches: ${appUrl}/career-profile`,
     html: `
       <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;">
-        <p style="font-size:16px;color:#111827;margin-bottom:20px;">Hi, your Bamboo AI agent found these matches:</p>
+        <p style="font-size:16px;color:#111827;margin-bottom:20px;">${greeting} your Bamboo AI agent found these matches:</p>
         <table style="width:100%;border-collapse:collapse;">
           ${jobListHtml}
         </table>

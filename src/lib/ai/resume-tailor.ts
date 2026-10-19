@@ -17,7 +17,7 @@ When in doubt, leave it out.
 1. Read the job: target title, must-have skills and keywords, seniority and domain.
 2. Select entries that fit one page and match the job. Favor 3-star entries and entries whose tags match the job's keywords.
 3. Group entries from the same org and role into one role heading (org, title, location, dates) with the selected entries as bullets. Role titles and dates come from the profile, never from the target job.
-4. Pick the closest angle for each entry, then lightly tune the wording to mirror the job's language without adding facts.
+4. Pick the closest angle for each entry, then lightly tune the wording to mirror the job's language without adding facts, outcomes or praise the profile does not state.
 5. Skills: a relevant subset of the profile's skills only, in 2-3 short labeled lines. Never list a skill the profile does not have.
 6. Education: pick the coursework or details most relevant to the job. Additional: 2-3 short items only if there is room.
 7. title_line: a headline title that the bullets shown actually earn.

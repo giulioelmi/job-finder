@@ -22,7 +22,7 @@ export async function POST() {
     }))
 
     const profile = await buildCareerProfile(pdfs)
-    await supabase.from('career_profiles').update({ profile }).eq('user_id', user.id)
+    await service.from('career_profiles').update({ profile }).eq('user_id', user.id)
     return NextResponse.json({ profile })
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e)

@@ -42,5 +42,8 @@ export async function fetchPageText(url: string, maxChars = 6000): Promise<strin
   if (!res.ok) return ''
   const $ = cheerio.load(await res.text())
   $('script, style, nav, header, footer, noscript').remove()
+  // cheerio's text() glues adjacent blocks together ("Requirements:Bachelor's"), so add a space after each
+  $('br').replaceWith(' ')
+  $('p, div, li, h1, h2, h3, h4, h5, h6, tr, td').after(' ')
   return $('body').text().replace(/\s+/g, ' ').trim().slice(0, maxChars)
 }

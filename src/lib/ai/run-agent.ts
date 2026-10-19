@@ -1,13 +1,29 @@
 import { createServiceClient } from '@/lib/supabase/server'
 import { isUSLocation } from '@/lib/job-utils'
 import { sendAgentMatchEmail } from '@/lib/email'
+import { readJobText } from '@/lib/search/read-job'
 import { runJobAgent, type CatalogJob } from './job-agent'
 import { tailorResume, renderResumeDocx } from './resume-tailor'
 import type { CareerProfile } from './schemas'
 
 type Service = ReturnType<typeof createServiceClient>
 
-const FREE_HOURS = 12
+export const FREE_HOURS = 12
+export const PRO_HOURS = 1
+const SLACK_MS = 5 * 60000 // an hourly cron can fire a few minutes early
+
+export function intervalHours(plan: string | null | undefined): number {
+  return plan === 'pro' ? PRO_HOURS : FREE_HOURS
+}
+
+function dueAt(lastRun: string | null, plan: string | null | undefined): number {
+  return (lastRun ? new Date(lastRun).getTime() : 0) + intervalHours(plan) * 3600000 - SLACK_MS
+}
+
+async function getPlan(supabase: Service, userId: string): Promise<string> {
+  const { data } = await supabase.from('subscriptions').select('plan').eq('user_id', userId).maybeSingle()
+  return data?.plan ?? 'free'
+}
 
 // Greenhouse/Ashby jobs found since the last run, filtered to the student's keywords.
 async function loadCatalogJobs(supabase: Service, profile: CareerProfile, since: Date): Promise<CatalogJob[]> {
@@ -31,22 +47,54 @@ async function loadCatalogJobs(supabase: Service, profile: CareerProfile, since:
     }))
 }
 
+export type RunResult =
+  | { status: 'ran'; matches: number }
+  | { status: 'skipped'; reason: 'no_profile' | 'not_due'; nextRunAt?: string }
+
 // One agent run for one user: find matches, tailor resumes, email, record.
-export async function runAgentForUser(userId: string): Promise<{ matches: number }> {
+// The run is claimed up front by stamping last_agent_run_at, so double clicks and
+// overlapping cron calls cannot start a second run (or beat the plan's schedule).
+export async function runAgentForUser(userId: string): Promise<RunResult> {
   const supabase = createServiceClient()
 
-  const [{ data: row }, { data: settings }, { data: previous }] = await Promise.all([
-    supabase.from('career_profiles').select('*').eq('user_id', userId).single(),
-    supabase.from('user_settings').select('plan, notification_email, email_notifications').eq('user_id', userId).single(),
+  const { data: row } = await supabase.from('career_profiles').select('*').eq('user_id', userId).maybeSingle()
+  if (!row?.profile) return { status: 'skipped', reason: 'no_profile' }
+
+  const plan = await getPlan(supabase, userId)
+  const previousRun: string | null = row.last_agent_run_at
+  if (Date.now() < dueAt(previousRun, plan)) {
+    return { status: 'skipped', reason: 'not_due', nextRunAt: new Date(dueAt(previousRun, plan) + SLACK_MS).toISOString() }
+  }
+
+  const claim = supabase.from('career_profiles').update({ last_agent_run_at: new Date().toISOString() }).eq('user_id', userId)
+  const { data: claimed } = await (previousRun ? claim.eq('last_agent_run_at', previousRun) : claim.is('last_agent_run_at', null)).select('id')
+  if (!claimed?.length) return { status: 'skipped', reason: 'not_due' }
+
+  try {
+    return await run(supabase, userId, row, plan, previousRun)
+  } catch (e) {
+    // Give the schedule back so a failed run is retried on the next cron call
+    await supabase.from('career_profiles').update({ last_agent_run_at: previousRun }).eq('user_id', userId)
+    throw e
+  }
+}
+
+async function run(
+  supabase: Service,
+  userId: string,
+  row: { profile: CareerProfile; send_resumes: boolean },
+  plan: string,
+  previousRun: string | null
+): Promise<RunResult> {
+  const profile = row.profile
+  const [{ data: settings }, { data: previous }] = await Promise.all([
+    supabase.from('user_settings').select('notification_email, email_notifications').eq('user_id', userId).maybeSingle(),
     supabase.from('agent_matches').select('url').eq('user_id', userId),
   ])
-  if (!row?.profile) return { matches: 0 }
 
-  const profile = row.profile as CareerProfile
-  const hours = settings?.plan === 'pro' ? 1 : FREE_HOURS
   // Look back to the last run (at least one schedule window, at most a day)
-  const lastRun = row.last_agent_run_at ? new Date(row.last_agent_run_at).getTime() : 0
-  const lookbackHours = Math.min(24, Math.max(hours, Math.ceil((Date.now() - lastRun) / 3600000)))
+  const sinceLast = previousRun ? Math.ceil((Date.now() - new Date(previousRun).getTime()) / 3600000) : 24
+  const lookbackHours = Math.min(24, Math.max(intervalHours(plan), sinceLast))
   const since = new Date(Date.now() - lookbackHours * 3600000)
 
   const catalogJobs = await loadCatalogJobs(supabase, profile, since)
@@ -58,7 +106,8 @@ export async function runAgentForUser(userId: string): Promise<{ matches: number
     let resumePath: string | null = null
     if (row.send_resumes) {
       try {
-        const content = await tailorResume(profile, match)
+        const description = match.description || await readJobText(match.url)
+        const content = await tailorResume(profile, { ...match, description })
         const docx = await renderResumeDocx(content)
         const safe = `${match.company}_${match.title}`.replace(/[^a-z0-9]+/gi, '_').slice(0, 60)
         const filename = `Resume_${safe}.docx`
@@ -85,21 +134,12 @@ export async function runAgentForUser(userId: string): Promise<{ matches: number
     }, { onConflict: 'user_id,url', ignoreDuplicates: true })
   }
 
-  const email = settings?.notification_email ?? profile.contact.email
+  const email = settings?.notification_email || profile.contact.email
   if (matches.length > 0 && settings?.email_notifications !== false && email) {
-    await sendAgentMatchEmail(
-      email,
-      matches.map(m => ({ ...m, posted_at: null })),
-      attachments
-    )
+    await sendAgentMatchEmail(email, matches.map(m => ({ ...m, posted_at: null })), attachments, profile.contact.name.split(' ')[0])
   }
 
-  await supabase
-    .from('career_profiles')
-    .update({ last_agent_run_at: new Date().toISOString() })
-    .eq('user_id', userId)
-
-  return { matches: matches.length }
+  return { status: 'ran', matches: matches.length }
 }
 
 // Users whose next run is due: pro every hour, free every 12 hours.
@@ -114,20 +154,14 @@ export async function findDueUsers(limit: number): Promise<string[]> {
 
   if (!rows || rows.length === 0) return []
 
-  const { data: plans } = await supabase
-    .from('user_settings')
+  const { data: subs } = await supabase
+    .from('subscriptions')
     .select('user_id, plan')
     .in('user_id', rows.map(r => r.user_id))
-  const planByUser = new Map((plans ?? []).map(p => [p.user_id as string, p.plan as string]))
+  const planByUser = new Map((subs ?? []).map(s => [s.user_id as string, s.plan as string]))
 
-  const now = Date.now()
   return rows
-    .filter(r => {
-      // 5 min of slack so an hourly cron doesn't skip a run that is a few seconds early
-      const hours = planByUser.get(r.user_id) === 'pro' ? 1 : FREE_HOURS
-      const last = r.last_agent_run_at ? new Date(r.last_agent_run_at).getTime() : 0
-      return now - last >= hours * 3600000 - 5 * 60000
-    })
+    .filter(r => Date.now() >= dueAt(r.last_agent_run_at, planByUser.get(r.user_id)))
     .slice(0, limit)
     .map(r => r.user_id as string)
 }

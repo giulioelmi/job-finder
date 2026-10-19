@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 
 const MAX_FILES = 5
-const MAX_BYTES = 5 * 1024 * 1024
+// Vercel rejects request bodies over 4.5 MB, so the client uploads one file per request
+const MAX_BYTES = 4 * 1024 * 1024
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient()
@@ -23,7 +24,7 @@ export async function POST(req: NextRequest) {
     if (!file.name.toLowerCase().endsWith('.pdf'))
       return NextResponse.json({ error: 'Resumes must be PDF files' }, { status: 400 })
     if (file.size > MAX_BYTES)
-      return NextResponse.json({ error: `${file.name} is larger than 5 MB` }, { status: 400 })
+      return NextResponse.json({ error: `${file.name} is larger than 4 MB` }, { status: 400 })
 
     const path = `${user.id}/career/${Date.now()}_${file.name.replace(/[^a-z0-9._-]+/gi, '_')}`
     const { error } = await service.storage.from('resumes').upload(path, await file.arrayBuffer(), { contentType: 'application/pdf' })
@@ -31,7 +32,7 @@ export async function POST(req: NextRequest) {
     paths.push(path)
   }
 
-  await supabase.from('career_profiles').upsert({ user_id: user.id, resume_paths: paths }, { onConflict: 'user_id' })
+  await service.from('career_profiles').upsert({ user_id: user.id, resume_paths: paths }, { onConflict: 'user_id' })
   return NextResponse.json({ resume_paths: paths })
 }
 
@@ -45,8 +46,9 @@ export async function DELETE(req: NextRequest) {
   const paths: string[] = row?.resume_paths ?? []
   if (!paths.includes(path)) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  await createServiceClient().storage.from('resumes').remove([path])
+  const service = createServiceClient()
+  await service.storage.from('resumes').remove([path])
   const remaining = paths.filter(p => p !== path)
-  await supabase.from('career_profiles').update({ resume_paths: remaining }).eq('user_id', user.id)
+  await service.from('career_profiles').update({ resume_paths: remaining }).eq('user_id', user.id)
   return NextResponse.json({ resume_paths: remaining })
 }
