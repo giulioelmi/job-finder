@@ -1,8 +1,8 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { CareerProfileClient } from './career-profile-client'
 
-export default async function CareerProfilePage({ searchParams }: { searchParams: Promise<{ upgraded?: string }> }) {
-  const { upgraded } = await searchParams
+export default async function CareerProfilePage({ searchParams }: { searchParams: Promise<{ upgraded?: string; billing?: string }> }) {
+  const { upgraded, billing } = await searchParams
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -31,6 +31,7 @@ export default async function CareerProfilePage({ searchParams }: { searchParams
         plan={settings?.plan ?? 'free'}
         initialMatches={matchesWithLinks}
         justUpgraded={upgraded === '1'}
+        billingReturn={billing === '1'}
       />
     </div>
   )

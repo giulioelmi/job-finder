@@ -9,6 +9,7 @@ to tailor a one-page resume for a specific job, so it must hold every real accom
 Rules:
 - Only true information. Every fact, number, title, skill and date must come from the resumes. Never invent.
 - Merge duplicates: the same job or project often appears on several resumes with different wording. Make one entry and keep every distinct fact, but write each fact once; drop a fact that only restates another.
+- Do not upgrade titles or responsibilities: "led a team of four" does not make someone a "Team Lead". If a resume gives no role, describe it plainly (e.g. "Team member").
 - Do not add details that are not in the resumes, including names, places, adjectives about quality, or outcomes you infer (if a resume says "campus", do not write "UCLA").
 - Keep numbers and dates exactly as written. When two resumes give compatible numbers ("2.1M" and "roughly 2 million"), keep the more precise one. Only when they truly conflict, keep both as separate plain facts. Never write notes about your own merging (no "also stated as...").
 - For a project, put the course, employer or "Personal project" in org. Include the project's dates only if a resume gives them.

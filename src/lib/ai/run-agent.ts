@@ -49,7 +49,7 @@ async function loadCatalogJobs(supabase: Service, profile: CareerProfile, since:
 
 export type RunResult =
   | { status: 'ran'; matches: number }
-  | { status: 'skipped'; reason: 'no_profile' | 'not_due'; nextRunAt?: string }
+  | { status: 'skipped'; reason: 'no_profile' | 'not_due'; nextRunAt?: string; lastRunAt?: string | null }
 
 // One agent run for one user: find matches, tailor resumes, email, record.
 // The run is claimed up front by stamping last_agent_run_at, so double clicks and
@@ -63,12 +63,12 @@ export async function runAgentForUser(userId: string): Promise<RunResult> {
   const plan = await getPlan(supabase, userId)
   const previousRun: string | null = row.last_agent_run_at
   if (Date.now() < dueAt(previousRun, plan)) {
-    return { status: 'skipped', reason: 'not_due', nextRunAt: new Date(dueAt(previousRun, plan) + SLACK_MS).toISOString() }
+    return { status: 'skipped', reason: 'not_due', lastRunAt: previousRun, nextRunAt: new Date(dueAt(previousRun, plan) + SLACK_MS).toISOString() }
   }
 
   const claim = supabase.from('career_profiles').update({ last_agent_run_at: new Date().toISOString() }).eq('user_id', userId)
   const { data: claimed } = await (previousRun ? claim.eq('last_agent_run_at', previousRun) : claim.is('last_agent_run_at', null)).select('id')
-  if (!claimed?.length) return { status: 'skipped', reason: 'not_due' }
+  if (!claimed?.length) return { status: 'skipped', reason: 'not_due', lastRunAt: new Date().toISOString() }
 
   try {
     return await run(supabase, userId, row, plan, previousRun)

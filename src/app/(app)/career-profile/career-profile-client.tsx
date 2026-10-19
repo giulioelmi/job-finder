@@ -27,11 +27,16 @@ interface Match {
   resume_url: string | null
 }
 
-export function CareerProfileClient({ initialRow, plan, initialMatches, justUpgraded }: {
+const PRO_PRICE = process.env.NEXT_PUBLIC_PRO_PRICE // e.g. "$9/month", shown next to Pro when set
+
+type Kind = 'ok' | 'error' | 'info'
+
+export function CareerProfileClient({ initialRow, plan, initialMatches, justUpgraded, billingReturn }: {
   initialRow: Row | null
   plan: string
   initialMatches: Match[]
   justUpgraded: boolean
+  billingReturn: boolean
 }) {
   const router = useRouter()
   const [paths, setPaths] = useState(initialRow?.resume_paths ?? [])
@@ -42,9 +47,20 @@ export function CareerProfileClient({ initialRow, plan, initialMatches, justUpgr
   const [titles, setTitles] = useState(initialRow?.profile?.target_titles.join(', ') ?? '')
   const [locations, setLocations] = useState(initialRow?.profile?.locations.join(', ') ?? '')
   const [elapsed, setElapsed] = useState(0)
-  const [message, setMessage] = useState(
-    justUpgraded ? (plan === 'pro' ? 'Welcome to Pro! Your agent now runs every hour.' : 'Payment received. Activating your Pro plan…') : ''
+  const [resumesChanged, setResumesChanged] = useState(false)
+  const [kind, setKind] = useState<Kind>('ok')
+  const [overrideNext, setOverrideNext] = useState<number | null>(null)
+  const [now, setNow] = useState<number | null>(null)
+  const [message, setMessageText] = useState(
+    justUpgraded ? (plan === 'pro' ? 'Welcome to Pro! Your agent now runs every hour.' : 'Payment received. Activating your Pro plan…')
+      : billingReturn ? (plan === 'pro' ? 'Billing updated. If you cancelled, Pro stays active until the end of your billing period.' : 'Your subscription has ended. You are on the Free plan.')
+      : ''
   )
+
+  function setMessage(text: string, next: Kind = 'ok') {
+    setMessageText(text)
+    setKind(next)
+  }
 
   async function call(label: string, url: string, init: RequestInit) {
     setBusy(label)
@@ -52,7 +68,7 @@ export function CareerProfileClient({ initialRow, plan, initialMatches, justUpgr
     const res = await fetch(url, init)
     const data = await res.json().catch(() => ({}))
     setBusy(null)
-    if (!res.ok) setMessage(data.detail ?? data.error ?? 'Something went wrong')
+    if (!res.ok) setMessage(data.detail ?? data.error ?? 'Something went wrong', 'error')
     return res.ok ? data : null
   }
 
@@ -64,18 +80,20 @@ export function CareerProfileClient({ initialRow, plan, initialMatches, justUpgr
       const data = await call('upload', '/api/career-profile/resumes', { method: 'POST', body: form })
       if (!data) return
       setPaths(data.resume_paths)
+      setResumesChanged(true)
     }
   }
 
   async function remove(path: string) {
     const data = await call('upload', `/api/career-profile/resumes?path=${encodeURIComponent(path)}`, { method: 'DELETE' })
-    if (data) setPaths(data.resume_paths)
+    if (data) { setPaths(data.resume_paths); setResumesChanged(true) }
   }
 
   async function build() {
     const data = await call('build', '/api/career-profile/build', { method: 'POST' })
     if (!data) return
     setProfile(data.profile)
+    setResumesChanged(false)
     setTitles(data.profile.target_titles.join(', '))
     setLocations(data.profile.locations.join(', '))
   }
@@ -84,8 +102,13 @@ export function CareerProfileClient({ initialRow, plan, initialMatches, justUpgr
     const data = await call('run', '/api/career-profile/run-now', { method: 'POST' })
     if (!data) return
     if (data.status === 'skipped') {
-      const next = data.nextRunAt ? new Date(data.nextRunAt).toLocaleString() : 'later'
-      setMessage(`Your agent already ran recently. The ${plan === 'pro' ? 'Pro' : 'Free'} plan allows the next run at ${next}.`)
+      if (data.lastRunAt && Date.now() - new Date(data.lastRunAt).getTime() < 10 * 60000) {
+        setMessage('Your agent is running or just finished. New matches appear below when it is done.', 'info')
+        router.refresh()
+        return
+      }
+      setOverrideNext(new Date(data.nextRunAt).getTime())
+      setMessage('Your agent already ran recently, so it is waiting for its next scheduled slot.', 'info')
       return
     }
     setMessage(`Agent finished: ${data.matches} new match${data.matches === 1 ? '' : 'es'}.`)
@@ -120,11 +143,41 @@ export function CareerProfileClient({ initialRow, plan, initialMatches, justUpgr
 
   // Stripe can redirect back before its webhook lands, so check again for a few seconds after checkout
   useEffect(() => {
-    if (!justUpgraded || plan === 'pro') return
+    if (!justUpgraded) return
+    if (plan === 'pro') { setMessage('Welcome to Pro! Your agent now runs every hour.'); return }
     let tries = 0
-    const timer = setInterval(() => { router.refresh(); if (++tries >= 5) clearInterval(timer) }, 2000)
+    const timer = setInterval(() => {
+      router.refresh()
+      if (++tries >= 5) { clearInterval(timer); setMessage('Still activating your Pro plan. This can take a minute; refresh the page shortly.', 'info') }
+    }, 2000)
     return () => clearInterval(timer)
   }, [justUpgraded, plan, router])
+
+  // The banner came from the URL; drop it so a reload or a shared link does not repeat it
+  useEffect(() => {
+    if (justUpgraded || billingReturn) window.history.replaceState(null, '', '/career-profile')
+  }, [justUpgraded, billingReturn])
+
+  // Another tab (or a scheduled run) may be mid-run, so refresh matches for a few minutes after a run started
+  const lastRun = initialRow?.last_agent_run_at
+  useEffect(() => {
+    if (!lastRun || Date.now() - new Date(lastRun).getTime() > 5 * 60000) return
+    const timer = setInterval(() => router.refresh(), 10000)
+    const stop = setTimeout(() => clearInterval(timer), 5 * 60000)
+    return () => { clearInterval(timer); clearTimeout(stop) }
+  }, [lastRun, router])
+
+  // Run now follows the plan's schedule, so lock the button until the next slot (5 min of slack, like the server)
+  const intervalMs = (plan === 'pro' ? 1 : 12) * 3600000
+  const derivedNext = lastRun ? new Date(lastRun).getTime() + intervalMs - 5 * 60000 : 0
+  const nextRun = Math.max(derivedNext, overrideNext ?? 0) || null
+  useEffect(() => {
+    setNow(Date.now())
+    if (!nextRun || nextRun <= Date.now()) return
+    const timer = setTimeout(() => setNow(Date.now()), nextRun - Date.now() + 500)
+    return () => clearTimeout(timer)
+  }, [nextRun])
+  const locked = now !== null && nextRun !== null && now < nextRun
 
   // The run takes minutes, so show which stage it is probably in
   useEffect(() => {
@@ -139,7 +192,13 @@ export function CareerProfileClient({ initialRow, plan, initialMatches, justUpgr
 
   return (
     <div className="space-y-6">
-      {message && <p className="text-sm text-gray-700 bg-green-50 border border-green-200 rounded-lg px-4 py-3">{message}</p>}
+      {message && (
+        <p role={kind === 'error' ? 'alert' : 'status'} className={`sticky top-2 z-10 text-sm rounded-lg px-4 py-3 border ${
+          kind === 'error' ? 'text-red-800 bg-red-50 border-red-200'
+            : kind === 'info' ? 'text-amber-900 bg-amber-50 border-amber-200'
+            : 'text-gray-700 bg-green-50 border-green-200'
+        }`}>{message}</p>
+      )}
 
       <Card><CardContent className="p-6">
         <h2 className="font-semibold text-gray-900 mb-1">1. Your resumes</h2>
@@ -161,14 +220,16 @@ export function CareerProfileClient({ initialRow, plan, initialMatches, justUpgr
             {busy === 'build' ? 'Building profile…' : profile ? 'Rebuild profile with AI' : 'Build profile with AI'}
           </Button>
         </div>
+        {paths.length === 0 && <p className="text-xs text-gray-400 mt-2">Upload at least one resume to build your profile.</p>}
+        {profile && resumesChanged && paths.length > 0 && <p className="text-xs text-amber-700 mt-2">Your resumes changed. Rebuild your profile to update it.</p>}
       </CardContent></Card>
 
       {profile ? (
         <Card><CardContent className="p-6">
           <h2 className="font-semibold text-gray-900 mb-4">2. Your career profile</h2>
           <p className="text-sm text-gray-700 mb-4">
-            <strong>{profile.contact.name}</strong>{profile.seniority && ` · ${profile.seniority}`}
-            {profile.contact.location && ` · ${profile.contact.location}`}
+            <strong>{profile.contact.name}</strong>{profile.contact.location && ` · ${profile.contact.location}`}
+            {profile.seniority && ` · looking for ${profile.seniority} roles`}
           </p>
 
           <div className="bg-gray-50 rounded-lg p-4 mb-5">
@@ -228,6 +289,13 @@ export function CareerProfileClient({ initialRow, plan, initialMatches, justUpgr
             {plan === 'pro' ? 'Pro: runs every hour' : 'Free: runs every 12 hours'}
           </Badge>
         </div>
+        {plan !== 'pro' && (
+          <div className="bg-gray-50 rounded-lg p-4 mb-4 text-sm text-gray-700 space-y-1">
+            <p><strong>Free:</strong> your agent runs every 12 hours.</p>
+            <p><strong>Pro{PRO_PRICE && ` (${PRO_PRICE})`}:</strong> your agent runs every hour, so you see new postings first.</p>
+            <p className="text-xs text-gray-500 pt-1">You pay securely through Stripe and can cancel anytime from &ldquo;Manage billing&rdquo;.</p>
+          </div>
+        )}
         <label className="flex items-center gap-2 text-sm text-gray-700 mb-2">
           <input type="checkbox" checked={enabled} onChange={e => toggle('agent_enabled', e.target.checked)} />
           Run my agent on a schedule
@@ -237,7 +305,7 @@ export function CareerProfileClient({ initialRow, plan, initialMatches, justUpgr
           Attach a tailored resume to each match
         </label>
         <div className="flex flex-wrap gap-3">
-          <Button onClick={runNow} disabled={!profile || busy !== null}>
+          <Button onClick={runNow} disabled={!profile || busy !== null || locked}>
             {busy === 'run' ? runStage : 'Run now'}
           </Button>
           {plan === 'pro' ? (
@@ -249,9 +317,14 @@ export function CareerProfileClient({ initialRow, plan, initialMatches, justUpgr
           )}
         </div>
         {!profile && <p className="text-xs text-gray-400 mt-2">Build your profile first to run your agent.</p>}
+        {profile && locked && nextRun && (
+          <p className="text-xs text-gray-500 mt-2">
+            Next run available {new Date(nextRun + 5 * 60000).toLocaleString(undefined, { timeZoneName: 'short' })}. &ldquo;Run now&rdquo; follows the same {plan === 'pro' ? 'hourly' : '12-hour'} limit as the schedule.
+          </p>
+        )}
         {busy === 'run' && <p className="text-xs text-gray-400 mt-2">This usually takes 1 to 3 minutes. You can leave this page open.</p>}
         {initialRow?.last_agent_run_at && (
-          <p className="text-xs text-gray-400 mt-2">Last run: {new Date(initialRow.last_agent_run_at).toLocaleString()}</p>
+          <p className="text-xs text-gray-400 mt-2">Last run: <span suppressHydrationWarning>{new Date(initialRow.last_agent_run_at).toLocaleString()}</span></p>
         )}
       </CardContent></Card>
 

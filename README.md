@@ -42,6 +42,7 @@ ANTHROPIC_API_KEY=            # AI job agent (Claude)
 STRIPE_SECRET_KEY=            # Pro plan billing
 STRIPE_PRICE_ID=              # price_... of the monthly Pro subscription
 STRIPE_WEBHOOK_SECRET=        # whsec_... of the /api/billing/webhook endpoint
+NEXT_PUBLIC_PRO_PRICE=        # optional label shown next to Pro, e.g. "$9/month"
 ```
 
 ### 4. Deploy to Vercel

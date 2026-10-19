@@ -21,8 +21,12 @@ export async function PATCH(req: NextRequest) {
     if (!parsed.success) return NextResponse.json({ error: 'Profile does not match the expected shape' }, { status: 400 })
     update.profile = parsed.data
   }
-  if (typeof body.agent_enabled === 'boolean') update.agent_enabled = body.agent_enabled
-  if (typeof body.send_resumes === 'boolean') update.send_resumes = body.send_resumes
+  for (const field of ['agent_enabled', 'send_resumes'] as const) {
+    if (body[field] === undefined) continue
+    if (typeof body[field] !== 'boolean') return NextResponse.json({ error: `${field} must be true or false` }, { status: 400 })
+    update[field] = body[field]
+  }
+  if (Object.keys(update).length === 0) return NextResponse.json({ error: 'Nothing to update' }, { status: 400 })
 
   const { error } = await createServiceClient()
     .from('career_profiles')

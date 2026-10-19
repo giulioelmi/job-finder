@@ -19,7 +19,8 @@ export async function POST(req: NextRequest) {
 
     let customer = sub?.stripe_customer_id as string | undefined
     if (!customer) {
-      customer = (await stripe.customers.create({ email: user.email, metadata: { user_id: user.id } })).id
+      // The idempotency key makes two simultaneous requests share one Stripe customer
+      customer = (await stripe.customers.create({ email: user.email, metadata: { user_id: user.id } }, { idempotencyKey: `customer-${user.id}` })).id
       await service.from('subscriptions').upsert({ user_id: user.id, stripe_customer_id: customer }, { onConflict: 'user_id' })
     }
 

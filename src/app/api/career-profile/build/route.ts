@@ -22,6 +22,9 @@ export async function POST() {
     }))
 
     const profile = await buildCareerProfile(pdfs)
+    // An empty result means the PDFs had no readable content: keep the existing profile
+    if (profile.entries.length + profile.projects.length + profile.education.length === 0)
+      return NextResponse.json({ error: 'EMPTY_PROFILE', detail: 'We could not find any resume content in your PDFs. If they are scanned images, export a text-based PDF and try again.' }, { status: 422 })
     await service.from('career_profiles').update({ profile }).eq('user_id', user.id)
     return NextResponse.json({ profile })
   } catch (e) {

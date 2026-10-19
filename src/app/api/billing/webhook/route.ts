@@ -9,7 +9,7 @@ const PRO_STATUSES = ['active', 'trialing', 'past_due'] // past_due keeps access
 export async function POST(req: NextRequest) {
   const secret = process.env.STRIPE_WEBHOOK_SECRET
   const signature = req.headers.get('stripe-signature')
-  if (!secret || !signature) return NextResponse.json({ error: 'Not configured' }, { status: 400 })
+  if (!secret || !signature) return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
 
   let event: Stripe.Event
   try {

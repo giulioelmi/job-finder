@@ -22,12 +22,16 @@ export async function POST(req: NextRequest) {
   const service = createServiceClient()
   for (const file of files) {
     if (!file.name.toLowerCase().endsWith('.pdf'))
-      return NextResponse.json({ error: 'Resumes must be PDF files' }, { status: 400 })
+      return NextResponse.json({ error: `${file.name} is not a PDF. Resumes must be PDF files.` }, { status: 400 })
     if (file.size > MAX_BYTES)
       return NextResponse.json({ error: `${file.name} is larger than 4 MB` }, { status: 400 })
 
+    const bytes = Buffer.from(await file.arrayBuffer())
+    if (bytes.subarray(0, 5).toString() !== '%PDF-')
+      return NextResponse.json({ error: `${file.name} is not a real PDF. Export your resume as a PDF and try again.` }, { status: 400 })
+
     const path = `${user.id}/career/${Date.now()}_${file.name.replace(/[^a-z0-9._-]+/gi, '_')}`
-    const { error } = await service.storage.from('resumes').upload(path, await file.arrayBuffer(), { contentType: 'application/pdf' })
+    const { error } = await service.storage.from('resumes').upload(path, bytes, { contentType: 'application/pdf' })
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     paths.push(path)
   }
