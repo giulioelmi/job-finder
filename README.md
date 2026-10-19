@@ -103,5 +103,7 @@ Run `supabase/migration_ai_agent.sql` to create the tables.
    `customer.subscription.deleted`, and put its signing secret in `STRIPE_WEBHOOK_SECRET`.
 4. Enable the Customer Portal in Stripe settings so "Manage billing" works.
 
+Check all keys at once with `npm run check:keys` (reads `.env.local`).
+
 Use Stripe test mode and the card `4242 4242 4242 4242` to try it. The webhook is the only thing that
 changes a user's plan (table `subscriptions`, read-only for users).
