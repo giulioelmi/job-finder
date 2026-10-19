@@ -17,13 +17,15 @@ When in doubt, leave it out.
 1. Read the job: target title, must-have skills and keywords, seniority and domain.
 2. Select entries that fit one page and match the job. Favor 3-star entries and entries whose tags match the job's keywords.
 3. Group entries from the same org and role into one role heading (org, title, location, dates) with the selected entries as bullets. Role titles and dates come from the profile, never from the target job.
-4. Pick the closest angle for each entry, then lightly tune the wording to mirror the job's language without adding facts, outcomes or praise the profile does not state.
-5. Skills: a relevant subset of the profile's skills only, in 2-3 short labeled lines. Never list a skill the profile does not have.
-6. Education: pick the coursework or details most relevant to the job. Additional: 2-3 short items only if there is room.
-7. title_line: a headline title that the bullets shown actually earn.
+4. Within each role, put the bullet that best matches the job's top requirement first and drop bullets that do not help for this job, so each resume differs visibly by posting. Use the exact numbers from the profile.
+5. Pick the closest angle for each entry, then lightly tune the wording to mirror the job's language without adding facts, outcomes or praise the profile does not state.
+6. Skills: a relevant subset of the profile's skills only, in 2-3 short labeled lines. Never list a skill the profile does not have.
+7. Education: pick the coursework or details most relevant to the job. Additional: 2-3 short items only if there is room.
+8. title_line: a headline title that the bullets shown actually earn.
 
 Caveats:
 - Entries marked in_development stay present tense ("building...", never "built" or "shipped").
+- Do not combine facts into a new claim, and do not add a topic, purpose or result that no fact states (e.g. do not say what a poster was about unless a fact does).
 - Do not upgrade numbers or dates. If the profile lists conflicting versions, use the more conservative one.
 - No summary section. No em dashes anywhere; use commas, colons or semicolons.
 - Bullets: action verb, then quantified outcome, then context or method. One or at most two lines each.

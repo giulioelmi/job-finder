@@ -144,11 +144,12 @@ export async function sendAgentMatchEmail(
   const { error } = await resend.emails.send({
     from: process.env.RESEND_FROM_EMAIL ?? 'JobBamboo <noreply@jobbamboo.com>',
     to,
-    subject: `Your AI agent found ${jobs.length} job${jobs.length === 1 ? '' : 's'} for you`,
+    subject: jobs.length === 1 ? `${jobs[0].company} is hiring: ${jobs[0].title}` : `${jobs[0].company} is hiring: ${jobs[0].title} (+${jobs.length - 1} more matches)`,
     text: `${greeting}\n\nYour Bamboo AI agent found these matches:\n\n${jobLines}${resumeLine}\n\nSee all matches: ${appUrl}/career-profile`,
     html: `
       <div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;">
-        <p style="font-size:16px;color:#111827;margin-bottom:20px;">${greeting} your Bamboo AI agent found these matches:</p>
+        <p style="font-size:16px;color:#111827;margin-bottom:4px;">${greeting}</p>
+        <p style="font-size:16px;color:#111827;margin-top:0;margin-bottom:20px;">Your Bamboo AI agent found these matches:</p>
         <table style="width:100%;border-collapse:collapse;">
           ${jobListHtml}
         </table>

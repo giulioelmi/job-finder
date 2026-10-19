@@ -39,6 +39,9 @@ export function CareerProfileClient({ initialRow, plan, initialMatches, justUpgr
   const [enabled, setEnabled] = useState(initialRow?.agent_enabled ?? true)
   const [sendResumes, setSendResumes] = useState(initialRow?.send_resumes ?? true)
   const [busy, setBusy] = useState<string | null>(null)
+  const [titles, setTitles] = useState(initialRow?.profile?.target_titles.join(', ') ?? '')
+  const [locations, setLocations] = useState(initialRow?.profile?.locations.join(', ') ?? '')
+  const [elapsed, setElapsed] = useState(0)
   const [message, setMessage] = useState(
     justUpgraded ? (plan === 'pro' ? 'Welcome to Pro! Your agent now runs every hour.' : 'Payment received. Activating your Pro plan…') : ''
   )
@@ -71,7 +74,10 @@ export function CareerProfileClient({ initialRow, plan, initialMatches, justUpgr
 
   async function build() {
     const data = await call('build', '/api/career-profile/build', { method: 'POST' })
-    if (data) setProfile(data.profile)
+    if (!data) return
+    setProfile(data.profile)
+    setTitles(data.profile.target_titles.join(', '))
+    setLocations(data.profile.locations.join(', '))
   }
 
   async function runNow() {
@@ -84,6 +90,17 @@ export function CareerProfileClient({ initialRow, plan, initialMatches, justUpgr
     }
     setMessage(`Agent finished: ${data.matches} new match${data.matches === 1 ? '' : 'es'}.`)
     router.refresh()
+  }
+
+  async function savePreferences() {
+    const list = (text: string) => text.split(',').map(x => x.trim()).filter(Boolean)
+    const next = { ...profile!, target_titles: list(titles), search_keywords: list(titles).map(t => t.toLowerCase()), locations: list(locations) }
+    const data = await call('prefs', '/api/career-profile', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profile: next }),
+    })
+    if (data) { setProfile(next); setMessage('Saved. Your agent will use these on its next run.') }
   }
 
   async function openBilling(endpoint: 'checkout' | 'portal') {
@@ -108,6 +125,15 @@ export function CareerProfileClient({ initialRow, plan, initialMatches, justUpgr
     const timer = setInterval(() => { router.refresh(); if (++tries >= 5) clearInterval(timer) }, 2000)
     return () => clearInterval(timer)
   }, [justUpgraded, plan, router])
+
+  // The run takes minutes, so show which stage it is probably in
+  useEffect(() => {
+    if (busy !== 'run') return
+    setElapsed(0)
+    const timer = setInterval(() => setElapsed(e => e + 1), 1000)
+    return () => clearInterval(timer)
+  }, [busy])
+  const runStage = elapsed < 10 ? 'Reading your profile…' : elapsed < 40 ? 'Searching company boards, LinkedIn and Indeed…' : elapsed < 80 ? 'Judging which jobs fit you…' : 'Tailoring your resumes…'
 
   const fileName = (p: string) => p.split('/').pop()!.replace(/^\d+_/, '')
 
@@ -137,16 +163,35 @@ export function CareerProfileClient({ initialRow, plan, initialMatches, justUpgr
         </div>
       </CardContent></Card>
 
-      {profile && (
+      {profile ? (
         <Card><CardContent className="p-6">
           <h2 className="font-semibold text-gray-900 mb-4">2. Your career profile</h2>
-          <p className="text-sm text-gray-700 mb-3">
+          <p className="text-sm text-gray-700 mb-4">
             <strong>{profile.contact.name}</strong>{profile.seniority && ` · ${profile.seniority}`}
+            {profile.contact.location && ` · ${profile.contact.location}`}
           </p>
-          <p className="text-xs font-medium text-gray-500 uppercase mb-1">Target titles</p>
-          <div className="flex flex-wrap gap-2 mb-4">
-            {profile.target_titles.map(t => <Badge key={t} className="bg-green-100 text-green-800">{t}</Badge>)}
+
+          <div className="bg-gray-50 rounded-lg p-4 mb-5">
+            <p className="text-sm font-medium text-gray-900 mb-2">What should your agent look for? Edit and save.</p>
+            <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Job titles (comma separated)</label>
+            <input value={titles} onChange={e => setTitles(e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-3" />
+            <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Locations (comma separated)</label>
+            <input value={locations} onChange={e => setLocations(e.target.value)} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-3" />
+            <Button size="sm" onClick={savePreferences} disabled={busy !== null || !titles.trim()}>Save preferences</Button>
           </div>
+
+          {profile.education.length > 0 && (
+            <>
+              <p className="text-xs font-medium text-gray-500 uppercase mb-1">Education</p>
+              <div className="space-y-1 mb-4">
+                {profile.education.map((e, i) => (
+                  <p key={i} className="text-sm text-gray-700">
+                    <strong>{e.school}</strong>, {e.degree} <span className="text-gray-400">{e.dates}</span>
+                  </p>
+                ))}
+              </div>
+            </>
+          )}
           <p className="text-xs font-medium text-gray-500 uppercase mb-1">Skills</p>
           <div className="space-y-1 mb-4">
             {profile.skills.map(s => (
@@ -154,11 +199,12 @@ export function CareerProfileClient({ initialRow, plan, initialMatches, justUpgr
             ))}
           </div>
           <p className="text-xs font-medium text-gray-500 uppercase mb-1">Experience and projects</p>
+          <p className="text-xs text-gray-400 mb-2">Stars show how strong an entry is; your agent leads with the strongest ones.</p>
           <div className="space-y-4">
             {[...profile.entries, ...profile.projects].map(e => (
               <div key={e.id}>
                 <p className="text-sm font-medium text-gray-900">
-                  {e.role} · {e.org} <span className="text-gray-400 font-normal">{e.dates}</span>
+                  {[e.role, e.org].filter(Boolean).join(' · ')} {e.dates && <span className="text-gray-400 font-normal">{e.dates}</span>}
                   <span className="ml-2 text-amber-500">{'★'.repeat(e.stars)}</span>
                 </p>
                 <ul className="list-disc ml-5 text-sm text-gray-600">
@@ -167,6 +213,11 @@ export function CareerProfileClient({ initialRow, plan, initialMatches, justUpgr
               </div>
             ))}
           </div>
+        </CardContent></Card>
+      ) : (
+        <Card><CardContent className="p-6">
+          <h2 className="font-semibold text-gray-400">2. Your career profile</h2>
+          <p className="text-sm text-gray-400 mt-1">Your profile appears here after you upload resumes and click &ldquo;Build profile with AI&rdquo;.</p>
         </CardContent></Card>
       )}
 
@@ -187,7 +238,7 @@ export function CareerProfileClient({ initialRow, plan, initialMatches, justUpgr
         </label>
         <div className="flex flex-wrap gap-3">
           <Button onClick={runNow} disabled={!profile || busy !== null}>
-            {busy === 'run' ? 'Agent is searching… (up to a few minutes)' : 'Run now'}
+            {busy === 'run' ? runStage : 'Run now'}
           </Button>
           {plan === 'pro' ? (
             <Button variant="secondary" onClick={() => openBilling('portal')} disabled={busy !== null}>Manage billing</Button>
@@ -197,6 +248,8 @@ export function CareerProfileClient({ initialRow, plan, initialMatches, justUpgr
             </Button>
           )}
         </div>
+        {!profile && <p className="text-xs text-gray-400 mt-2">Build your profile first to run your agent.</p>}
+        {busy === 'run' && <p className="text-xs text-gray-400 mt-2">This usually takes 1 to 3 minutes. You can leave this page open.</p>}
         {initialRow?.last_agent_run_at && (
           <p className="text-xs text-gray-400 mt-2">Last run: {new Date(initialRow.last_agent_run_at).toLocaleString()}</p>
         )}

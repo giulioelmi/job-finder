@@ -43,7 +43,7 @@ and judge fit only from the posting's real requirements.
 
 A good match fits the student's seniority (do not match senior roles to an intern or new grad),
 their must-have skills, and their locations (or remote). Prefer recent postings.
-The reason must name concrete overlaps between the posting and the profile, in 1-2 sentences.
+The reason is shown to the student, so write it to them in the second person ("You used SQL on 2.1M records..."). Name one or two concrete overlaps between the posting and their profile, and any real gap, in at most 2 short sentences. Do not repeat the job title or restate the score.
 If nothing is a strong fit, save nothing. When you are done searching, reply with a one-line summary.`
 
 export async function runJobAgent(
