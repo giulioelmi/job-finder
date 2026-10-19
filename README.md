@@ -38,6 +38,7 @@ RESEND_API_KEY=
 RESEND_FROM_EMAIL=noreply@yourdomain.com
 NEXT_PUBLIC_APP_URL=https://your-app.vercel.app
 CRON_SECRET=any-random-string-you-choose
+ANTHROPIC_API_KEY=            # AI job agent (Claude)
 ```
 
 ### 4. Deploy to Vercel
@@ -79,3 +80,12 @@ npm run dev
 3. Fetches LinkedIn's public guest jobs API with `f_TPR=r1800` (last 30 min)
 4. Saves new jobs to Supabase, skipping duplicates via `linkedin_id`
 5. Notifies users only about jobs they haven't seen before
+
+## AI job agent
+
+Students upload resumes at `/career-profile`; Claude builds a career profile. A scheduled agent
+(`/api/cron/agent?secret=...`, call it **hourly** from cron-job.org) then searches the Greenhouse/Ashby
+catalog, LinkedIn (public guest API) and Indeed (DuckDuckGo `site:` search) with free, zero-token search
+tools, saves strong matches, tailors a one-page DOCX resume for each, and emails them.
+Free users run every 12 hours, Pro users every hour (`user_settings.plan`).
+Run `supabase/migration_ai_agent.sql` to create the tables.
