@@ -33,7 +33,8 @@ export default async function ProfilesPage() {
         </Link>
       </div>
       <ResumeSourceCard initialPaths={agentState?.resume_paths ?? []} agentProfileName={agentProfile?.name ?? null} />
-      <ProfilesClient initialProfiles={profiles ?? []} />
+      {/* The list copies its props into state once, so remount it when a build or edit changes the profiles */}
+      <ProfilesClient key={(profiles ?? []).map(p => `${p.id}:${p.updated_at}`).join(',')} initialProfiles={profiles ?? []} />
     </div>
   )
 }
