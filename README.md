@@ -26,23 +26,7 @@ A web app that scrapes LinkedIn for new jobs every 30 minutes and notifies you v
 2. Add and verify your sending domain
 3. Create an API key
 
-### 3. Stripe (Pro subscription)
-
-1. Create an account at [stripe.com](https://stripe.com) and stay in **Test mode** while setting up
-2. Run `supabase/migration_billing.sql` in the Supabase SQL editor
-3. **Product catalog → Add product**: name it "Pro", give it a monthly recurring price, and copy the price ID (`price_...`)
-4. **Developers → API keys**: copy the secret key (`sk_test_...`)
-5. **Settings → Billing → Customer portal**: click **Activate** so users can cancel or change their card
-6. **Developers → Webhooks → Add endpoint**:
-   - URL: `https://your-app.vercel.app/api/stripe/webhook`
-   - Events: `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`
-   - Copy the signing secret (`whsec_...`)
-7. Test locally with the [Stripe CLI](https://stripe.com/docs/stripe-cli):
-   `stripe listen --forward-to localhost:3000/api/stripe/webhook` (it prints a local `whsec_...` to use instead), then pay with card `4242 4242 4242 4242`
-
-Paying sets `billing.is_pro = true` for the user; cancelling sets it back to `false`.
-
-### 4. Environment variables
+### 3. Environment variables
 
 Fill in `.env.local`:
 
@@ -54,12 +38,9 @@ RESEND_API_KEY=
 RESEND_FROM_EMAIL=noreply@yourdomain.com
 NEXT_PUBLIC_APP_URL=https://your-app.vercel.app
 CRON_SECRET=any-random-string-you-choose
-STRIPE_SECRET_KEY=sk_test_...
-STRIPE_PRICE_ID=price_...
-STRIPE_WEBHOOK_SECRET=whsec_...
 ```
 
-### 5. Deploy to Vercel
+### 4. Deploy to Vercel
 
 ```bash
 npx vercel --prod
@@ -67,7 +48,7 @@ npx vercel --prod
 
 Add all environment variables in the Vercel dashboard.
 
-### 6. Set up cron (free via cron-job.org)
+### 5. Set up cron (free via cron-job.org)
 
 1. Sign up at [cron-job.org](https://cron-job.org)
 2. Create a cron job:
