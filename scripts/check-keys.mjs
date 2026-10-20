@@ -41,9 +41,12 @@ await check('Resend', ['RESEND_API_KEY'], async () => {
   return `verified domains: ${verified.join(', ')}; RESEND_FROM_EMAIL must use one of them`
 })
 
-await check('Cron', ['CRON_SECRET', 'NEXT_PUBLIC_APP_URL'], async () => {
-  const r = await get(`${env.NEXT_PUBLIC_APP_URL}/api/cron/agent?secret=${env.CRON_SECRET}`)
-  return `/api/cron/agent answered ${JSON.stringify(r)}`
+// Runs the Greenhouse/Ashby scraper once. It has no side effects beyond filling the jobs table
+// (the agent cron would start real agent runs, with Claude calls and emails).
+await check('Scraper cron', ['CRON_SECRET', 'NEXT_PUBLIC_APP_URL'], async () => {
+  const r = await get(`${env.NEXT_PUBLIC_APP_URL}/api/cron/scrape?secret=${env.CRON_SECRET}`)
+  if (!r.boards?.ok) throw new Error(`no board answered: ${JSON.stringify(r)}`)
+  return `boards ok ${r.boards.ok}, not found ${r.boards.notFound}, failed ${r.boards.failed}; ${r.fetched} jobs in the last 90 minutes (${r.newJobs} new)`
 })
 
 console.log(failed ? `\n${failed} check(s) need attention` : '\nAll keys work')

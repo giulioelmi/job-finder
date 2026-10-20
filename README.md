@@ -1,16 +1,18 @@
-# JobFinder — LinkedIn Job Tracker
+# Bamboo: AI job search agent
 
-A web app that scrapes LinkedIn for new jobs every 30 minutes and notifies you via email.
+Students upload all their resumes; Claude builds one profile (saved in **Profiles**). An AI agent then
+searches Greenhouse and Ashby company boards, LinkedIn and Indeed on a schedule, picks the jobs that fit,
+and emails them with a tailored one-page resume. Free runs every 12 hours, Pro every hour.
 
 ## Stack (all free tiers)
 
 | Service | Purpose |
 |---------|---------|
-| Next.js 14 | Frontend + API routes |
+| Next.js 16 | Frontend + API routes |
 | Supabase | Database + Auth |
 | Resend | Email notifications (100/day free) |
 | Vercel | Hosting |
-| cron-job.org | Free cron trigger (every 30 min) |
+| cron-job.org | Free cron triggers (scraper and agent) |
 
 ## Setup
 
@@ -53,15 +55,18 @@ npx vercel --prod
 
 Add all environment variables in the Vercel dashboard.
 
-### 5. Set up cron (free via cron-job.org)
+### 5. Set up the crons (free via cron-job.org)
 
-1. Sign up at [cron-job.org](https://cron-job.org)
-2. Create a cron job:
-   - URL: `https://your-app.vercel.app/api/cron/scrape?secret=YOUR_CRON_SECRET`
-   - Schedule: every 30 minutes
-3. This is free and unlimited
+`vercel.json` has no cron config, so both jobs are scheduled externally. Create two cron-job.org jobs:
 
-> If you have Vercel Pro, the `vercel.json` cron config already handles this.
+| URL | Schedule | What it does |
+|-----|----------|--------------|
+| `https://your-app.vercel.app/api/cron/scrape?secret=YOUR_CRON_SECRET` | every 20-30 min | Fetches new postings from every Greenhouse/Ashby board into the `jobs` table (no emails) |
+| `https://your-app.vercel.app/api/cron/agent?secret=YOUR_CRON_SECRET` | every hour | Runs each due user's agent: Pro users every hour, Free users every 12 hours |
+
+The scrape response lists `boards` (`ok`, `notFound`, `failed`), so a broken board API shows up in cron-job.org's history.
+The scrape window is 90 minutes, so one missed call loses nothing. The agent cron runs 2 users per call
+(Vercel's function time limit), taking the longest-waiting users first.
 
 ## Local development
 
@@ -72,27 +77,23 @@ npm run dev
 
 ## Pages
 
-- **`/dashboard`** — Stats overview: applications, recent notifications
-- **`/jobs`** — Jobs found in the last 24 hours + manual scan button
-- **`/applications`** — Track applications (applied / interview / offer / rejected)
-- **`/settings`** — Keywords, location, email preferences, LinkedIn URL preview
-
-## How scraping works
-
-1. Cron hits `/api/cron/scrape` every 30 min
-2. Reads each user's settings (keywords, location, time window)
-3. Fetches LinkedIn's public guest jobs API with `f_TPR=r1800` (last 30 min)
-4. Saves new jobs to Supabase, skipping duplicates via `linkedin_id`
-5. Notifies users only about jobs they haven't seen before
+- **`/dashboard`**: stats (applications, agent matches, interviews, offers) and weekly activity
+- **`/career-profile`** (sidebar "AI Agent"): agent on/off, run now, plan and billing, recent matches with tailored resumes
+- **`/profiles`**: upload ALL your resumes, build your profile with AI, edit profiles (the extension autofills applications from them)
+- **`/applications`**, **`/networking`**: track applications and contacts
+- **`/settings`**: where the agent's match emails go
 
 ## AI job agent
 
-Students upload resumes at `/career-profile`; Claude builds a career profile. A scheduled agent
-(`/api/cron/agent?secret=...`, call it **hourly** from cron-job.org) then searches the Greenhouse/Ashby
-catalog, LinkedIn (public guest API) and Indeed (DuckDuckGo `site:` search) with free, zero-token search
-tools, saves strong matches, tailors a one-page DOCX resume for each, and emails them.
-Free users run every 12 hours, Pro users every hour (`user_settings.plan`).
-Run `supabase/migration_ai_agent.sql` to create the tables.
+Students upload **all** their resumes on `/profiles` and Claude builds one profile from them (saved as a
+profile marked "used by your AI agent"; a rebuild only replaces what the AI fills in, never what the user typed).
+The scheduled agent (`/api/cron/agent`) then reads new Greenhouse/Ashby postings from the `jobs` table, searches
+LinkedIn (public guest API) and Indeed (DuckDuckGo `site:` search) with free, zero-token search tools, saves strong
+matches, tailors a one-page DOCX resume for each, and emails them. Free users run every 12 hours, Pro users every
+hour (`subscriptions.plan`). The AI only sees career facts: never address, DEI answers, salary or work authorization.
+
+Run these in the Supabase SQL editor, in order: `supabase/migration_ai_agent.sql`, then
+`supabase/migration_agent_profile.sql`. Also create a private storage bucket named `resumes`.
 
 ## Billing (Stripe)
 
