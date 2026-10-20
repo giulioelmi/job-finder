@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { NetworkingContact, Job } from '@/lib/types'
 import { formatDistanceToNow, isPast, formatDistanceToNowStrict } from 'date-fns'
+import { daysFromNow } from '@/lib/utils'
 import {
   Users, Plus, X, Pencil, Trash2, Building2, Clock,
   ExternalLink, CheckCircle, Search, ChevronDown,
@@ -70,7 +71,7 @@ export function NetworkingClient({ contacts: initial, contactJobsByCompany, user
   const [editingContact, setEditingContact] = useState<NetworkingContact | null>(null)
 
   async function handleAdd(data: ContactFormData) {
-    const nextFollowup = new Date(Date.now() + FOLLOWUP_DAYS * 24 * 60 * 60 * 1000).toISOString()
+    const nextFollowup = daysFromNow(FOLLOWUP_DAYS).toISOString()
     const { data: result, error } = await supabase
       .from('networking_contacts')
       .insert({ user_id: userId, ...data, next_followup_at: nextFollowup })

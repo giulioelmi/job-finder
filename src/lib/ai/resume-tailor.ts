@@ -17,7 +17,7 @@ When in doubt, leave it out.
 
 1. Read the job: target title, must-have skills and keywords, seniority and domain.
 2. Select the experience and projects that fit one page and match the job best, and lead with the strongest and most relevant. Each description is a list of true facts, one per line.
-3. Each work_experience entry becomes one role heading (company, title, location if known, dates) with bullets made from its facts. Titles, companies and dates come from the profile, never from the target job.
+3. Each work_experience entry becomes one role heading (company, title, location if known, dates) with bullets made from its facts. A project's dates, if any, are its first description line: use them as the project's dates, not as a bullet. Titles, companies and dates come from the profile, never from the target job.
 4. Within each role, put the bullet that best matches the job's top requirement first and drop bullets that do not help for this job, so each resume differs visibly by posting. Use the exact numbers from the profile.
 5. Tune the wording to mirror the job's language without adding facts, outcomes or praise the profile does not state.
 6. Skills: a relevant subset of the profile's skills only, in 2-3 short labeled lines. Never list a skill the profile does not have.
@@ -25,7 +25,7 @@ When in doubt, leave it out.
 8. title_line: a headline title that the bullets shown actually earn.
 
 Caveats:
-- Work or projects that are ongoing (current is true, or the facts say "building" or "currently") stay present tense ("building...", never "built" or "shipped").
+- Work or projects that are ongoing (current is true, the dates end in "present", or the facts say "building" or "currently") stay present tense ("building...", never "built" or "shipped").
 - Do not combine facts into a new claim, and do not add a topic, purpose or result that no fact states (e.g. do not say what a poster was about unless a fact does).
 - Do not upgrade numbers or dates. If the profile lists conflicting versions, use the more conservative one.
 - No summary section. No em dashes anywhere; use commas, colons or semicolons.

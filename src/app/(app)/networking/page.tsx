@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NetworkingClient } from './networking-client'
+import { daysFromNow } from '@/lib/utils'
 import { Job, NetworkingContact } from '@/lib/types'
 
 export default async function NetworkingPage() {
@@ -34,7 +35,7 @@ export default async function NetworkingPage() {
   const contactJobsByCompany: Record<string, Job[]> = {}
 
   if (contactCompanies.length > 0) {
-    const sevenDaysCutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+    const sevenDaysCutoff = daysFromNow(-7).toISOString()
     const companyFilter = contactCompanies.map(c => `company.ilike.%${c}%`).join(',')
 
     const { data: jobsData } = await supabase

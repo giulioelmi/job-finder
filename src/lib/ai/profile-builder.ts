@@ -14,7 +14,7 @@ Rules:
 - Do not add details that are not in the resumes, including names, places or outcomes you infer (if a resume says "campus", do not write "UCLA").
 - Keep numbers exactly as written. When two resumes give compatible numbers ("2.1M" and "roughly 2 million"), keep the more precise one. Only when they truly conflict, keep both as separate plain facts. Never write notes about your own merging (no "also stated as...").
 - Dates: "Mon YYYY" (e.g. "Jun 2025"). Set current to true and end_date to "" for work that is ongoing. Ongoing or unshipped project work stays in present tense ("Building...").
-- For a project, put the course, employer or "Personal project" at the start of its description's first line only if a resume says so. Give a project's technologies as a comma-separated string.
+- A project has no date field, so when a resume gives its dates, write them as the first line of its description ("- Sep 2024 - present"). Give a project's technologies as a comma-separated string.
 - skills: a flat list of the skills the resumes name, with no duplicates.
 - target_titles: the 3-5 job titles this student is best qualified for right now (short titles, as they appear on job boards).
 - target_locations: where the student lives or says they want to work. Use "Remote" only if a resume says so.
