@@ -1,13 +1,6 @@
 export interface UserSettings {
   id: string
   user_id: string
-  search_all_companies: boolean
-  companies: string[]        // Greenhouse slugs
-  ashby_companies: string[]  // Ashby slugs
-  categories: string[]
-  job_types: string[]
-  experience_levels: string[]
-  location: string
   email_notifications: boolean
   notification_email: string | null
   created_at: string
@@ -142,6 +135,11 @@ export interface AutofillProfile {
   cover_letter_prompt: string | null
   referral_source: string | null
   resume_url: string | null
+
+  // AI job agent
+  target_titles: string[]
+  target_locations: string[]
+  use_for_agent: boolean
 
   created_at: string
   updated_at: string

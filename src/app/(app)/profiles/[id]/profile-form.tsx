@@ -56,6 +56,9 @@ export function ProfileForm({ initialProfile }: ProfileFormProps) {
   const isEditing = !!initialProfile?.id
 
   const [name, setName] = useState(initialProfile?.name ?? '')
+  const [useForAgent, setUseForAgent] = useState(initialProfile?.use_for_agent ?? false)
+  const [targetTitles, setTargetTitles] = useState((initialProfile?.target_titles ?? []).join(', '))
+  const [targetLocations, setTargetLocations] = useState((initialProfile?.target_locations ?? []).join(', '))
   const [firstName, setFirstName] = useState(initialProfile?.first_name ?? '')
   const [lastName, setLastName] = useState(initialProfile?.last_name ?? '')
   const [email, setEmail] = useState(initialProfile?.email ?? '')
@@ -205,8 +208,12 @@ export function ProfileForm({ initialProfile }: ProfileFormProps) {
     setSaving(true)
     setError(null)
 
+    const list = (text: string) => text.split(',').map(x => x.trim()).filter(Boolean)
     const payload = {
       name: name.trim(),
+      use_for_agent: useForAgent,
+      target_titles: list(targetTitles),
+      target_locations: list(targetLocations),
       first_name: firstName.trim() || null,
       last_name: lastName.trim() || null,
       email: email.trim() || null,
@@ -266,6 +273,25 @@ export function ProfileForm({ initialProfile }: ProfileFormProps) {
         <CardContent>
           <Field label="Name (e.g. Data Scientist, Business Analyst)">
             <input className={inputCls} value={name} onChange={e => setName(e.target.value)} placeholder="Data Scientist" />
+          </Field>
+        </CardContent>
+      </Card>
+
+      {/* AI job agent */}
+      <Card>
+        <CardHeader><CardTitle>AI Job Agent</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input type="checkbox" className="mt-1 w-4 h-4" checked={useForAgent} onChange={e => setUseForAgent(e.target.checked)} />
+            <span className="text-sm text-gray-700">
+              Use this profile for my AI job agent. The agent finds and tailors resumes from this profile&apos;s experience, education, projects and skills. Only one profile can be used at a time.
+            </span>
+          </label>
+          <Field label="Job titles to look for (comma separated)">
+            <input className={inputCls} value={targetTitles} onChange={e => setTargetTitles(e.target.value)} placeholder="Data Analyst, Business Analyst" />
+          </Field>
+          <Field label="Locations (comma separated)">
+            <input className={inputCls} value={targetLocations} onChange={e => setTargetLocations(e.target.value)} placeholder="Los Angeles, CA, Remote" />
           </Field>
         </CardContent>
       </Card>

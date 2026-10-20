@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Pencil, Trash2 } from 'lucide-react'
 import type { AutofillProfile } from '@/lib/types'
 
@@ -26,7 +27,7 @@ export function ProfilesClient({ initialProfiles }: { initialProfiles: AutofillP
   if (profiles.length === 0) {
     return (
       <div className="text-center py-16 text-gray-400">
-        <p className="mb-4">No profiles yet.</p>
+        <p className="mb-4">No profiles yet. Build one from your resumes above, or create one by hand.</p>
         <Link href="/profiles/new"><Button>Create your first profile</Button></Link>
       </div>
     )
@@ -38,7 +39,10 @@ export function ProfilesClient({ initialProfiles }: { initialProfiles: AutofillP
         <Card key={profile.id}>
           <CardContent className="flex items-center justify-between py-4">
             <div>
-              <p className="font-semibold text-gray-900">{profile.name}</p>
+              <p className="font-semibold text-gray-900">
+                {profile.name}
+                {profile.use_for_agent && <Badge className="ml-2 bg-green-100 text-green-800">Used by your AI agent</Badge>}
+              </p>
               <p className="text-sm text-gray-500 mt-0.5">
                 {[profile.first_name, profile.last_name].filter(Boolean).join(' ')}
                 {profile.email ? ` · ${profile.email}` : ''}

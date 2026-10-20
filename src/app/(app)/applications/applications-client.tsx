@@ -197,8 +197,7 @@ export function ApplicationsClient({ applications: initial, userId }: Applicatio
               <>
                 <h3 className="text-lg font-semibold text-gray-700 mb-2">No applications</h3>
                 <p className="text-gray-500 text-sm">
-                  Track applications from the{' '}
-                  <a href="/jobs" className="text-green-700 hover:underline">Recent Jobs</a> page, or add one manually.
+                  Your <a href="/career-profile" className="text-green-700 hover:underline">AI agent</a> emails you matches. Add an application manually to start tracking it.
                 </p>
               </>
             )}

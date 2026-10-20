@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
-import { matchesExperienceLevel, matchesJobType } from '@/lib/job-utils'
 import { NetworkingClient } from './networking-client'
+import { daysFromNow } from '@/lib/utils'
 import { Job, NetworkingContact } from '@/lib/types'
 
 export default async function NetworkingPage() {
@@ -14,16 +14,15 @@ export default async function NetworkingPage() {
     .eq('user_id', user!.id)
     .order('next_followup_at', { ascending: true, nullsFirst: false })
 
-  // Fetch user settings for job filtering
-  const { data: settings } = await supabase
-    .from('user_settings')
-    .select('categories, job_types, experience_levels')
+  // Only show roles that match the titles the student's AI agent is looking for
+  const { data: agentProfile } = await supabase
+    .from('autofill_profiles')
+    .select('target_titles')
     .eq('user_id', user!.id)
-    .single()
+    .eq('use_for_agent', true)
+    .maybeSingle()
 
-  const userKeywords: string[] = ((settings?.categories ?? []) as string[]).map((k: string) => k.toLowerCase())
-  const userJobTypes: string[] = (settings?.job_types as string[] | null) ?? ['internship', 'fulltime']
-  const userExperienceLevels: string[] = (settings?.experience_levels as string[] | null) ?? []
+  const userKeywords: string[] = ((agentProfile?.target_titles ?? []) as string[]).map(k => k.toLowerCase())
 
   // Get unique contact companies (lowercase)
   const contactCompanies = [...new Set(
@@ -36,7 +35,7 @@ export default async function NetworkingPage() {
   const contactJobsByCompany: Record<string, Job[]> = {}
 
   if (contactCompanies.length > 0) {
-    const sevenDaysCutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+    const sevenDaysCutoff = daysFromNow(-7).toISOString()
     const companyFilter = contactCompanies.map(c => `company.ilike.%${c}%`).join(',')
 
     const { data: jobsData } = await supabase
@@ -47,13 +46,9 @@ export default async function NetworkingPage() {
       .order('found_at', { ascending: false })
       .limit(200)
 
-    // Apply user's keyword + job type filters
     const filteredJobs = ((jobsData ?? []) as Job[]).filter(job => {
       const titleLower = (job.title ?? '').toLowerCase()
-      if (userKeywords.length > 0 && !userKeywords.some(kw => titleLower.includes(kw))) return false
-      if (!matchesJobType(job.title ?? '', userJobTypes)) return false
-      if (!matchesExperienceLevel(job.title ?? '', userExperienceLevels)) return false
-      return true
+      return userKeywords.length === 0 || userKeywords.some(kw => titleLower.includes(kw))
     })
 
     // Group by matching contact company key

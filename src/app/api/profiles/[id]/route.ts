@@ -31,6 +31,8 @@ export async function PATCH(
   const { id: _id, user_id: _uid, created_at: _ca, ...updates } = body
 
   const service = createServiceClient()
+  // Only one profile per user feeds the AI agent
+  if (updates.use_for_agent === true) await service.from('autofill_profiles').update({ use_for_agent: false }).eq('user_id', userId).neq('id', id)
   const { data, error } = await service
     .from('autofill_profiles')
     .update({ ...updates, updated_at: new Date().toISOString() })

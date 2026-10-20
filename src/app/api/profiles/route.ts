@@ -41,6 +41,8 @@ export async function POST(req: NextRequest) {
   }
 
   const service = createServiceClient()
+  // Only one profile per user feeds the AI agent
+  if (body.use_for_agent === true) await service.from('autofill_profiles').update({ use_for_agent: false }).eq('user_id', userId)
   const { data, error } = await service
     .from('autofill_profiles')
     .insert({ ...body, user_id: userId })

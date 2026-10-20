@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { getStatusColor } from '@/lib/utils'
-import { Briefcase, Bell, TrendingUp, Clock } from 'lucide-react'
+import { Briefcase, Sparkles, TrendingUp, Clock } from 'lucide-react'
 import Link from 'next/link'
 import ApplicationFlowDiagram from '@/components/dashboard/application-flow-diagram'
 
@@ -10,24 +10,26 @@ export default async function DashboardPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const todayStart = new Date()
-  todayStart.setUTCHours(0, 0, 0, 0)
-
   // Fetch stats in parallel
-  const [applicationsRes, notificationsRes] = await Promise.all([
+  const [applicationsRes, matchesRes, agentProfileRes] = await Promise.all([
     supabase
       .from('applications')
       .select('status, created_at, jobs(title, company)', { count: 'exact' })
       .eq('user_id', user!.id),
     supabase
-      .from('job_notifications')
-      .select('id, jobs!inner(posted_at)', { count: 'exact' })
+      .from('agent_matches')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user!.id),
+    supabase
+      .from('autofill_profiles')
+      .select('id', { count: 'exact', head: true })
       .eq('user_id', user!.id)
-      .gte('jobs.posted_at', todayStart.toISOString()),
+      .eq('use_for_agent', true),
   ])
 
   const applications = applicationsRes.data ?? []
-  const notificationsCount = notificationsRes.count ?? 0
+  const matchesCount = matchesRes.count ?? 0
+  const hasAgentProfile = (agentProfileRes.count ?? 0) > 0
 
   // Build 7-day activity chart data
   const today = new Date()
@@ -53,7 +55,7 @@ export default async function DashboardPage() {
 
   const stats = [
     { label: 'Total Applications', value: applications.length, icon: Briefcase, color: 'text-green-700' },
-    { label: 'Jobs Today', value: notificationsCount, icon: Bell, color: 'text-purple-600' },
+    { label: 'Agent Matches', value: matchesCount, icon: Sparkles, color: 'text-purple-600' },
     { label: 'Interviews', value: statusCounts.interview, icon: TrendingUp, color: 'text-yellow-600' },
     { label: 'Offers', value: statusCounts.offer, icon: Clock, color: 'text-green-600' },
   ]
@@ -66,6 +68,15 @@ export default async function DashboardPage() {
           <p className="text-gray-500 mt-1">Track your job search progress</p>
         </div>
       </div>
+
+      {!hasAgentProfile && (
+        <Link href="/profiles" className="block mb-6 rounded-xl border border-green-200 bg-green-50 px-5 py-4 hover:bg-green-100 transition-colors">
+          <p className="font-semibold text-green-900">Start here: upload all your resumes</p>
+          <p className="text-sm text-green-800 mt-0.5">
+            Every version you have, for every kind of role. Bamboo builds your profile from them, then your AI agent finds jobs and emails you matches with a tailored resume.
+          </p>
+        </Link>
+      )}
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">

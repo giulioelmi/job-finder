@@ -7,12 +7,12 @@ import {
   LayoutDashboard,
   Leaf,
   Settings,
-  Bell,
   LogOut,
   Briefcase,
   Users,
   X,
   UserCircle,
+  Sparkles,
 } from 'lucide-react'
 
 interface NavItem {
@@ -33,9 +33,9 @@ export function Sidebar({ userEmail, onClose, notificationCount = 0 }: SidebarPr
 
   const navItems: NavItem[] = [
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { href: '/jobs', label: 'Recent Jobs', icon: Bell },
     { href: '/applications', label: 'Applications', icon: Briefcase },
     { href: '/networking', label: 'Networking', icon: Users, badge: notificationCount },
+    { href: '/career-profile', label: 'AI Agent', icon: Sparkles },
     { href: '/profiles', label: 'Profiles', icon: UserCircle },
     { href: '/settings', label: 'Settings', icon: Settings },
   ]

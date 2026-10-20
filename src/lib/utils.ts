@@ -16,3 +16,6 @@ export function getStatusColor(status: string): string {
     default: return 'bg-gray-100 text-gray-700'
   }
 }
+
+// A date `days` from now (negative for the past).
+export const daysFromNow = (days: number) => new Date(Date.now() + days * 24 * 60 * 60 * 1000)
