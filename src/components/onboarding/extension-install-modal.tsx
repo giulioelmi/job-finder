@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useSyncExternalStore } from 'react'
 import { Chrome, ExternalLink } from 'lucide-react'
 
 interface ExtensionInstallModalProps {
@@ -13,7 +13,14 @@ export function ExtensionInstallModal({ userId }: ExtensionInstallModalProps) {
   const storageKey = useMemo(() => `extension_install_prompt_seen_${userId}`, [userId])
   const [dismissed, setDismissed] = useState(false)
 
-  const hasSeenPrompt = typeof window !== 'undefined' && window.localStorage.getItem(storageKey) === 'true'
+  // localStorage only exists in the browser. The server snapshot says "seen" so the server renders nothing,
+  // which matches the client's first render; React then switches to the real value. (Reading localStorage
+  // directly during render made the server show the modal and the client hide it: a hydration error.)
+  const hasSeenPrompt = useSyncExternalStore(
+    () => () => {},
+    () => window.localStorage.getItem(storageKey) === 'true',
+    () => true
+  )
   const isVisible = !dismissed && !hasSeenPrompt
 
   function handleInstalled() {

@@ -7,6 +7,7 @@ export interface GreenhouseJob {
   location: string | null
   url: string
   posted_at: string | null
+  description: string | null  // not in the board list; see fetchGreenhouseJobDescription
 }
 
 export type FetchResult =
@@ -24,6 +25,9 @@ interface GreenhouseApiJob {
 }
 
 import { matchesJobType } from './job-utils'
+import { htmlToText } from './html-text'
+
+const TIMEOUT_MS = 15000
 
 // Fetch open jobs for a Greenhouse company board.
 //   keywords    – filter by job title containing any keyword (empty = all)
@@ -42,7 +46,7 @@ export async function fetchGreenhouseJobs(
 
   let response: Response
   try {
-    response = await fetch(url, { next: { revalidate: 0 } })
+    response = await fetch(url, { next: { revalidate: 0 }, signal: AbortSignal.timeout(TIMEOUT_MS) })
   } catch (err) {
     return { ok: false, reason: 'error', message: `Network error: ${String(err)}` }
   }
@@ -72,6 +76,7 @@ export async function fetchGreenhouseJobs(
       location: job.location?.name || null,
       url: job.absolute_url,
       posted_at: job.first_published || job.updated_at || null,
+      description: null,
     }))
 
   // Apply createdAfter filter in JS if posted_at is available
@@ -87,4 +92,21 @@ export async function fetchGreenhouseJobs(
   jobs = jobs.filter(job => matchesJobType(job.title, jobTypes))
 
   return { ok: true, jobs }
+}
+
+// The board list has no job text, so it is fetched per job (only for jobs we have not stored yet).
+// Greenhouse returns the description as HTML-escaped HTML, so it is decoded twice.
+export async function fetchGreenhouseJobDescription(companySlug: string, externalId: string): Promise<string | null> {
+  const jobId = externalId.split('_').pop()
+  try {
+    const response = await fetch(`https://boards-api.greenhouse.io/v1/boards/${companySlug}/jobs/${jobId}`, {
+      next: { revalidate: 0 },
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    })
+    if (!response.ok) return null
+    const data = await response.json() as { content?: string }
+    return data.content ? htmlToText(htmlToText(data.content)).slice(0, 8000) || null : null
+  } catch {
+    return null
+  }
 }

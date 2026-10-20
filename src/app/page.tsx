@@ -7,9 +7,9 @@ import { Leaf, Bell, BarChart2, Filter, Mail, Zap } from 'lucide-react'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Bamboo — Automated Job Alerts for Tech Roles',
+  title: 'Bamboo — Your AI Job Search Agent',
   description:
-    'Bamboo scans 500+ top tech companies every 20 minutes and emails you when matching jobs appear. Track applications, filter by role and company, and never miss an opening.',
+    'Upload your resumes and Bamboo\'s AI agent finds jobs that fit you across 500+ company job boards, LinkedIn and Indeed, then emails them with a tailored resume. Track every application in one place.',
   keywords: [
     'job alert tool',
     'automated job notifications',
@@ -20,9 +20,9 @@ export const metadata: Metadata = {
     'machine learning engineer jobs',
   ],
   openGraph: {
-    title: 'Bamboo — Automated Job Alerts for Tech Roles',
+    title: 'Bamboo — Your AI Job Search Agent',
     description:
-      'Get email alerts when your target companies post new jobs. Covers Stripe, Anthropic, OpenAI, Databricks, and 500+ more.',
+      'An AI agent that finds jobs that fit your resumes and emails them with a tailored resume. Covers Stripe, Anthropic, OpenAI, Databricks, LinkedIn, Indeed and 500+ more.',
     type: 'website',
   },
 }
@@ -34,7 +34,7 @@ const jsonLd = {
   applicationCategory: 'BusinessApplication',
   operatingSystem: 'Web',
   description:
-    'Bamboo is a free job alert and application tracking tool that monitors 500+ top tech company websites every 20 minutes. Users configure job title keywords, companies, and job types and receive email notifications when new matching positions are posted.',
+    'Bamboo is an AI job search agent. Users upload their resumes; the agent searches 500+ company job boards, LinkedIn and Indeed on a schedule, picks the jobs that fit, and emails them with a tailored one-page resume. Includes an application tracker.',
   offers: {
     '@type': 'Offer',
     price: '0',
@@ -45,18 +45,18 @@ const jsonLd = {
 const features = [
   {
     icon: Zap,
-    title: 'Scans every 20 minutes',
-    description: '500+ tech company websites checked automatically, around the clock.',
+    title: 'Searches for you',
+    description: '500+ company job boards, LinkedIn and Indeed, checked on a schedule. Pro runs every hour.',
   },
   {
     icon: Mail,
-    title: 'Instant email alerts',
-    description: 'Get notified the moment a matching job is posted — before it fills up.',
+    title: 'Matches in your inbox',
+    description: 'Only jobs that fit your resumes, each with a short note on why, and a tailored resume attached.',
   },
   {
     icon: Filter,
-    title: 'Precise filters',
-    description: 'Target specific companies, job titles, and internship or full-time roles.',
+    title: 'Built from your resumes',
+    description: 'Upload every resume you have and the AI builds one complete profile. Only true facts, never invented.',
   },
   {
     icon: BarChart2,
@@ -114,13 +114,13 @@ export default async function LandingPage() {
         <section className="max-w-4xl mx-auto px-6 pt-20 pb-16 text-center">
           <div className="inline-flex items-center gap-2 bg-green-50 text-green-700 text-xs font-medium px-3 py-1.5 rounded-full mb-6">
             <Zap className="w-3 h-3" />
-            Scans 500+ companies every 20 minutes
+            AI agent: job boards, LinkedIn and Indeed
           </div>
           <h1 className="text-4xl sm:text-5xl font-bold text-gray-900 leading-tight mb-5">
-            Never miss a job opening.
+            Let an AI agent find your next job.
           </h1>
           <p className="text-lg text-gray-500 max-w-lg mx-auto mb-8">
-            Bamboo monitors 500+ tech company websites every 20 minutes and emails you the moment a matching role appears.
+            Upload your resumes. Bamboo finds the jobs that fit you and emails them with a tailored resume.
           </p>
           <Link
             href="/signup"
@@ -134,7 +134,7 @@ export default async function LandingPage() {
         <section className="border-y border-gray-100 py-6 bg-gray-50">
           <div className="max-w-4xl mx-auto px-6">
             <p className="text-xs text-gray-400 text-center mb-4 uppercase tracking-wide font-medium">
-              Tracks job boards at companies including
+              Searches job boards at companies including
             </p>
             <div className="flex flex-wrap justify-center gap-x-6 gap-y-2">
               {companies.map(c => (
@@ -164,9 +164,9 @@ export default async function LandingPage() {
 
         {/* Bottom CTA */}
         <section className="bg-green-700 py-16 text-center">
-          <h2 className="text-2xl font-bold text-white mb-3">Start tracking jobs today</h2>
+          <h2 className="text-2xl font-bold text-white mb-3">Put your job search on autopilot</h2>
           <p className="text-green-200 text-sm mb-7 max-w-md mx-auto">
-            Free, no credit card required. Get your first email alert within 20 minutes of signing up.
+            Free, no credit card required. Upload your resumes and your agent starts searching right away.
           </p>
           <Link
             href="/signup"

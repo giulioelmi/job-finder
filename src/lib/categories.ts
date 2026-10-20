@@ -1,52 +1,4 @@
-// Suggested job title keywords for filtering Greenhouse results
-export const JOB_TITLE_SUGGESTIONS = [
-  'Data Scientist',
-  'Data Engineer',
-  'Machine Learning Engineer',
-  'AI Engineer',
-  'ML Engineer',
-  'Data Analyst',
-  'Business Analyst',
-  'Business Intelligence Engineer',
-  'BI Developer',
-  'BI Analyst',
-  'Product Manager',
-  'Product Analyst',
-  'Analytics Engineer',
-  'Quantitative Analyst',
-  'Research Scientist',
-  'Applied Scientist',
-  'Data Science Manager',
-  'Software Engineer',
-  'Backend Engineer',
-  'Frontend Engineer',
-  'Full Stack Engineer',
-  'DevOps Engineer',
-  'Cloud Engineer',
-  'Site Reliability Engineer',
-  'Platform Engineer',
-  'Solutions Architect',
-]
-
-// Job type options (mirrors the internship/fulltime toggle in the UI)
-export const JOB_TYPES = [
-  { id: 'internship', label: 'Internship' },
-  { id: 'fulltime',   label: 'Full-time' },
-] as const
-
-export type JobTypeId = (typeof JOB_TYPES)[number]['id']
-
-export const EXPERIENCE_LEVELS = [
-  { id: 'entry', label: 'Entry / New Grad' },
-  { id: 'mid', label: 'Mid-level' },
-  { id: 'senior', label: 'Senior+' },
-] as const
-
-export type ExperienceLevelOptionId = (typeof EXPERIENCE_LEVELS)[number]['id']
-
-// Full list of companies known to use Greenhouse, searched when "all companies" mode is on.
-// Slugs match boards.greenhouse.io/{slug}
-// Best-effort list of US tech companies that use Greenhouse.
+// Fallback company boards, used only when the greenhouse_slugs / ashby_slugs tables are empty.
 // Slugs that return 404 are skipped automatically at runtime — safe to add candidates.
 export const ALL_GREENHOUSE_COMPANIES = [
   'airtable',
@@ -112,7 +64,6 @@ export const ALL_GREENHOUSE_COMPANIES = [
 ]
 
 // Subset shown as autocomplete suggestions in "specific companies" mode
-export const COMPANY_SUGGESTIONS = ALL_GREENHOUSE_COMPANIES
 
 // Full list of companies known to use Ashby, searched when "all companies" mode is on.
 // Slugs match api.ashbyhq.com/posting-api/job-board/{slug}
@@ -123,4 +74,3 @@ export const ALL_ASHBY_COMPANIES: string[] = [
 ]
 
 // Subset shown as autocomplete suggestions in "specific Ashby companies" mode
-export const ASHBY_COMPANY_SUGGESTIONS = ALL_ASHBY_COMPANIES

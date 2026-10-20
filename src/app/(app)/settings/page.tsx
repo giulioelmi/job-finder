@@ -15,7 +15,7 @@ export default async function SettingsPage() {
     <div className="p-4 lg:p-8 max-w-2xl mx-auto">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-        <p className="text-gray-500 mt-1">Configure your job search preferences</p>
+        <p className="text-gray-500 mt-1">Choose where your AI agent sends its job matches</p>
       </div>
       <SettingsForm userId={user!.id} userEmail={user!.email ?? ''} initialSettings={settings} />
     </div>

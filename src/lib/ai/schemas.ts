@@ -1,47 +1,44 @@
 import { z } from 'zod'
 
-// Career profile: a master content library built from all of a student's resumes.
-// Same shape the resume-tailor skill reads: entries hold raw facts plus angles.
-const EntrySchema = z.object({
-  id: z.string().describe('Short id like E1, E2 (experience) or P1, P2 (projects)'),
-  org: z.string(),
-  role: z.string(),
-  location: z.string(),
-  dates: z.string(),
-  tags: z.array(z.string()),
-  facts: z.array(z.string()).describe('Raw facts exactly as written in the resumes, numbers unchanged'),
-  angles: z.array(z.string()).describe('2-3 resume bullet phrasings angled for different role types'),
-  stars: z.union([z.literal(1), z.literal(2), z.literal(3)]).describe('Strength rating 1-3'), // a literal union: structured outputs reject min/max
-  in_development: z.boolean().describe('True if the work is ongoing / not shipped'),
-})
-
-export const CareerProfileSchema = z.object({
-  contact: z.object({
-    name: z.string(),
-    email: z.string(),
-    phone: z.string(),
-    location: z.string(),
-    linkedin: z.string(),
-    github: z.string(),
-  }),
-  target_titles: z.array(z.string()),
-  search_keywords: z.array(z.string()).describe('Short job-title keywords to search job boards with'),
-  locations: z.array(z.string()),
-  seniority: z.string().describe('e.g. internship, entry level, mid level'),
+// What the profile builder returns: the same shape as the Profiles (autofill_profiles) fields it fills in,
+// so a build is saved with no mapping step.
+export const BuiltProfileSchema = z.object({
+  first_name: z.string(),
+  last_name: z.string(),
+  email: z.string(),
+  phone: z.string(),
+  city: z.string(),
+  state: z.string().describe('Two-letter US state code when it is a US location'),
+  linkedin_url: z.string(),
+  github_url: z.string(),
+  target_titles: z.array(z.string()).describe('3-5 job titles this student is best qualified for right now'),
+  target_locations: z.array(z.string()),
   education: z.array(z.object({
     school: z.string(),
-    location: z.string(),
     degree: z.string(),
-    dates: z.string(),
-    details: z.array(z.string()),
+    field_of_study: z.string(),
+    gpa: z.string(),
+    start_date: z.string(),
+    end_date: z.string(),
   })),
-  skills: z.array(z.object({ group: z.string(), items: z.array(z.string()) })),
-  entries: z.array(EntrySchema),
-  projects: z.array(EntrySchema),
-  additional: z.array(z.string()),
+  work_experience: z.array(z.object({
+    company: z.string(),
+    title: z.string(),
+    start_date: z.string(),
+    end_date: z.string(),
+    current: z.boolean(),
+    description: z.string().describe('One true fact per line, each starting with "- ", numbers exactly as written'),
+  })),
+  projects: z.array(z.object({
+    name: z.string(),
+    url: z.string(),
+    description: z.string().describe('One true fact per line, each starting with "- "'),
+    technologies: z.string(),
+  })),
+  skills: z.array(z.string()),
 })
 
-export type CareerProfile = z.infer<typeof CareerProfileSchema>
+export type BuiltProfile = z.infer<typeof BuiltProfileSchema>
 
 // Tailored resume: the resume-tailor skill's content.json schema.
 export const ResumeContentSchema = z.object({

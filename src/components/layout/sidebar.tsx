@@ -7,7 +7,6 @@ import {
   LayoutDashboard,
   Leaf,
   Settings,
-  Bell,
   LogOut,
   Briefcase,
   Users,
@@ -34,7 +33,6 @@ export function Sidebar({ userEmail, onClose, notificationCount = 0 }: SidebarPr
 
   const navItems: NavItem[] = [
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { href: '/jobs', label: 'Recent Jobs', icon: Bell },
     { href: '/applications', label: 'Applications', icon: Briefcase },
     { href: '/networking', label: 'Networking', icon: Users, badge: notificationCount },
     { href: '/career-profile', label: 'AI Agent', icon: Sparkles },

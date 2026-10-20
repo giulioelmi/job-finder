@@ -7,6 +7,7 @@ export interface AshbyJob {
   location: string | null
   url: string
   posted_at: string | null
+  description: string | null
 }
 
 export type AshbyFetchResult =
@@ -19,6 +20,8 @@ interface AshbyApiJob {
   location: string | null
   jobUrl: string
   publishedAt: string | null
+  descriptionPlain?: string | null
+  descriptionHtml?: string | null
 }
 
 interface AshbyApiResponse {
@@ -31,6 +34,9 @@ interface AshbyApiResponse {
 
 // Returns true if the job title matches the requested job types.
 import { matchesJobType } from './job-utils'
+import { htmlToText } from './html-text'
+
+const TIMEOUT_MS = 15000
 
 // Fetch open jobs for an Ashby company board.
 //   keywords    – filter by job title containing any keyword (empty = all)
@@ -46,7 +52,7 @@ export async function fetchAshbyJobs(
 
   let response: Response
   try {
-    response = await fetch(url, { next: { revalidate: 0 } })
+    response = await fetch(url, { next: { revalidate: 0 }, signal: AbortSignal.timeout(TIMEOUT_MS) })
   } catch (err) {
     return { ok: false, reason: 'error', message: `Network error: ${String(err)}` }
   }
@@ -78,6 +84,8 @@ export async function fetchAshbyJobs(
       location: job.location || null,
       url: job.jobUrl,
       posted_at: job.publishedAt || null,
+      // Ashby's board list already carries the full posting text
+      description: (job.descriptionPlain || (job.descriptionHtml ? htmlToText(job.descriptionHtml) : '')).slice(0, 8000) || null,
     }))
 
   if (createdAfter) {

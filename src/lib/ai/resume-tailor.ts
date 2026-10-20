@@ -2,29 +2,30 @@ import {
   AlignmentType, BorderStyle, Document, Packer, Paragraph, TabStopType, TextRun,
 } from 'docx'
 import { parseJson } from './claude'
-import { ResumeContentSchema, type CareerProfile, type ResumeContent } from './schemas'
+import { ResumeContentSchema, type ResumeContent } from './schemas'
+import type { AgentView } from './profile-view'
 
 // Port of the resume-tailor skill for unattended runs: same truthfulness rules,
 // same content.json schema, same one-page ATS-safe Word layout (build_resume.py).
 
-const SYSTEM_PROMPT = `You tailor a one-page, ATS-safe resume for a specific job from a student's
-master content library (their career profile). You select and re-frame entries; you never invent.
+const SYSTEM_PROMPT = `You tailor a one-page, ATS-safe resume for a specific job from a student's profile
+(their education, work_experience, projects and skills). You select and re-frame; you never invent.
 
 THE ONE RULE THAT MATTERS MOST: only true information. Every fact, number, title, skill and date
-must trace back to the career profile. Selection and re-wording are allowed; invention is not.
+must trace back to the profile. Selection and re-wording are allowed; invention is not.
 When in doubt, leave it out.
 
 1. Read the job: target title, must-have skills and keywords, seniority and domain.
-2. Select entries that fit one page and match the job. Favor 3-star entries and entries whose tags match the job's keywords.
-3. Group entries from the same org and role into one role heading (org, title, location, dates) with the selected entries as bullets. Role titles and dates come from the profile, never from the target job.
+2. Select the experience and projects that fit one page and match the job best, and lead with the strongest and most relevant. Each description is a list of true facts, one per line.
+3. Each work_experience entry becomes one role heading (company, title, location if known, dates) with bullets made from its facts. Titles, companies and dates come from the profile, never from the target job.
 4. Within each role, put the bullet that best matches the job's top requirement first and drop bullets that do not help for this job, so each resume differs visibly by posting. Use the exact numbers from the profile.
-5. Pick the closest angle for each entry, then lightly tune the wording to mirror the job's language without adding facts, outcomes or praise the profile does not state.
+5. Tune the wording to mirror the job's language without adding facts, outcomes or praise the profile does not state.
 6. Skills: a relevant subset of the profile's skills only, in 2-3 short labeled lines. Never list a skill the profile does not have.
-7. Education: pick the coursework or details most relevant to the job. Additional: 2-3 short items only if there is room.
+7. Education: school, degree and field, GPA if listed, dates. Additional: only items the profile supports, and only if there is room.
 8. title_line: a headline title that the bullets shown actually earn.
 
 Caveats:
-- Entries marked in_development stay present tense ("building...", never "built" or "shipped").
+- Work or projects that are ongoing (current is true, or the facts say "building" or "currently") stay present tense ("building...", never "built" or "shipped").
 - Do not combine facts into a new claim, and do not add a topic, purpose or result that no fact states (e.g. do not say what a poster was about unless a fact does).
 - Do not upgrade numbers or dates. If the profile lists conflicting versions, use the more conservative one.
 - No summary section. No em dashes anywhere; use commas, colons or semicolons.
@@ -36,18 +37,18 @@ Before answering, review your draft with these lenses in order and fix what you 
 2. Recruiter 6-second scan: strongest, most relevant material in the top third; title matches the job.
 3. Narrative fit: a coherent story for this job; weakest bullets cut.
 4. Truthfulness audit, LAST, as a hard gate: re-check every line against the profile. No invented or
-   upgraded numbers, no skills outside the profile, in-development work still present tense.
+   upgraded numbers, no skills outside the profile, ongoing work still present tense.
 
 Use empty strings or empty arrays for anything you leave out.`
 
 export async function tailorResume(
-  profile: CareerProfile,
+  profile: AgentView,
   job: { title: string; company: string; description: string }
 ): Promise<ResumeContent> {
   const text = [
     `Job: ${job.title} at ${job.company}`,
     `Job description:\n${job.description.slice(0, 8000) || '(not available, use the title)'}`,
-    `Career profile:\n${JSON.stringify(profile)}`,
+    `Student profile:\n${JSON.stringify(profile)}`,
   ].join('\n\n')
   return parseJson(ResumeContentSchema, SYSTEM_PROMPT, [{ type: 'text', text }], 'medium')
 }

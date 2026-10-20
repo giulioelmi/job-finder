@@ -17,11 +17,11 @@ drop policy if exists "Users can view own subscription" on subscriptions;
 create policy "Users can view own subscription" on subscriptions
   for select using (auth.uid() = user_id);
 
--- One career profile per user, built by Claude from all uploaded resumes
+-- Per-user agent state: the uploaded source resumes and the agent's settings.
+-- The profile itself lives in autofill_profiles (see migration_agent_profile.sql).
 create table if not exists career_profiles (
   id uuid primary key default uuid_generate_v4(),
   user_id uuid not null references auth.users(id) on delete cascade unique,
-  profile jsonb,
   resume_paths text[] default array[]::text[],
   agent_enabled boolean default true,
   send_resumes boolean default true,

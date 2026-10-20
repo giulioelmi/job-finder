@@ -54,7 +54,7 @@ export default function SignupPage() {
             <Leaf className="w-6 h-6 text-white" />
           </div>
           <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Bamboo</h1>
-          <p className="text-gray-500 mt-1">Start tracking jobs for free</p>
+          <p className="text-gray-500 mt-1">Start your AI job search for free</p>
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">

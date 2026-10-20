@@ -1,26 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient, createServiceClient } from '@/lib/supabase/server'
-import { CareerProfileSchema } from '@/lib/ai/schemas'
 
-// Edit the profile JSON and the agent toggles.
+// The agent's on/off and "attach tailored resumes" switches. The profile itself is edited in Profiles.
 export async function PATCH(req: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const body = await req.json().catch(() => null) as {
-    profile?: unknown
-    agent_enabled?: boolean
-    send_resumes?: boolean
-  } | null
+  const body = await req.json().catch(() => null) as { agent_enabled?: unknown; send_resumes?: unknown } | null
   if (!body) return NextResponse.json({ error: 'Invalid body' }, { status: 400 })
 
-  const update: Record<string, unknown> = {}
-  if (body.profile !== undefined) {
-    const parsed = CareerProfileSchema.safeParse(body.profile)
-    if (!parsed.success) return NextResponse.json({ error: 'Profile does not match the expected shape' }, { status: 400 })
-    update.profile = parsed.data
-  }
+  const update: Record<string, boolean> = {}
   for (const field of ['agent_enabled', 'send_resumes'] as const) {
     if (body[field] === undefined) continue
     if (typeof body[field] !== 'boolean') return NextResponse.json({ error: `${field} must be true or false` }, { status: 400 })

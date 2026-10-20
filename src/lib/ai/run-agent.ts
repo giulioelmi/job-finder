@@ -4,7 +4,8 @@ import { sendAgentMatchEmail } from '@/lib/email'
 import { readJobText } from '@/lib/search/read-job'
 import { runJobAgent, type CatalogJob } from './job-agent'
 import { tailorResume, renderResumeDocx } from './resume-tailor'
-import type { CareerProfile } from './schemas'
+import { agentView, type AgentView } from './profile-view'
+import type { AutofillProfile } from '@/lib/types'
 
 type Service = ReturnType<typeof createServiceClient>
 
@@ -25,15 +26,22 @@ async function getPlan(supabase: Service, userId: string): Promise<string> {
   return data?.plan ?? 'free'
 }
 
-// Greenhouse/Ashby jobs found since the last run, filtered to the student's keywords.
-async function loadCatalogJobs(supabase: Service, profile: CareerProfile, since: Date): Promise<CatalogJob[]> {
+// "Junior Data Scientist" should still find "Associate Data Scientist": match on the title without seniority words.
+// The agent judges seniority itself when it reads the posting.
+const SENIORITY_RE = /\b(junior|jr|senior|sr|associate|entry[- ]level|intern(ship)?|staff|lead|principal|i{1,3})\b\.?/gi
+const coreTitle = (t: string) => t.replace(SENIORITY_RE, ' ').replace(/\s+/g, ' ').trim().toLowerCase()
+
+// Greenhouse/Ashby jobs found since the last run, filtered to the student's target titles.
+async function loadCatalogJobs(supabase: Service, profile: AgentView, since: Date): Promise<CatalogJob[]> {
   const { data } = await supabase
     .from('jobs')
-    .select('title, company, location, url, external_id')
+    .select('title, company, location, url, external_id, description')
+    .or('external_id.like.gh_%,external_id.like.ashby_%') // the scraper's rows only, not manual or sample ones
     .gte('found_at', since.toISOString())
+    .order('found_at', { ascending: false })
     .limit(2000)
 
-  const keywords = [...profile.search_keywords, ...profile.target_titles].map(k => k.toLowerCase())
+  const keywords = profile.target_titles.map(coreTitle).filter(Boolean)
   return (data ?? [])
     .filter(j => isUSLocation(j.location))
     .filter(j => keywords.some(k => j.title.toLowerCase().includes(k)))
@@ -43,7 +51,8 @@ async function loadCatalogJobs(supabase: Service, profile: CareerProfile, since:
       company: j.company,
       location: j.location,
       url: j.url,
-      source: (j.external_id as string).startsWith('ashby') ? 'ashby' : 'greenhouse',
+      source: (j.external_id as string).startsWith('ashby_') ? 'ashby' : 'greenhouse',
+      description: (j.description as string | null) ?? undefined,
     }))
 }
 
@@ -57,8 +66,13 @@ export type RunResult =
 export async function runAgentForUser(userId: string): Promise<RunResult> {
   const supabase = createServiceClient()
 
-  const { data: row } = await supabase.from('career_profiles').select('*').eq('user_id', userId).maybeSingle()
-  if (!row?.profile) return { status: 'skipped', reason: 'no_profile' }
+  const { data: agentProfile } = await supabase.from('autofill_profiles').select('*').eq('user_id', userId).eq('use_for_agent', true).maybeSingle()
+  if (!agentProfile) return { status: 'skipped', reason: 'no_profile' }
+
+  // The agent's settings row may not exist yet (a profile can be marked for the agent without uploading resumes)
+  await supabase.from('career_profiles').upsert({ user_id: userId }, { onConflict: 'user_id', ignoreDuplicates: true })
+  const { data: row } = await supabase.from('career_profiles').select('*').eq('user_id', userId).single()
+  if (!row) return { status: 'skipped', reason: 'no_profile' }
 
   const plan = await getPlan(supabase, userId)
   const previousRun: string | null = row.last_agent_run_at
@@ -71,7 +85,7 @@ export async function runAgentForUser(userId: string): Promise<RunResult> {
   if (!claimed?.length) return { status: 'skipped', reason: 'not_due', lastRunAt: new Date().toISOString() }
 
   try {
-    return await run(supabase, userId, row, plan, previousRun)
+    return await run(supabase, userId, agentView(agentProfile as AutofillProfile), row.send_resumes, plan, previousRun)
   } catch (e) {
     // Give the schedule back so a failed run is retried on the next cron call
     await supabase.from('career_profiles').update({ last_agent_run_at: previousRun }).eq('user_id', userId)
@@ -82,11 +96,11 @@ export async function runAgentForUser(userId: string): Promise<RunResult> {
 async function run(
   supabase: Service,
   userId: string,
-  row: { profile: CareerProfile; send_resumes: boolean },
+  profile: AgentView,
+  sendResumes: boolean,
   plan: string,
   previousRun: string | null
 ): Promise<RunResult> {
-  const profile = row.profile
   const [{ data: settings }, { data: previous }] = await Promise.all([
     supabase.from('user_settings').select('notification_email, email_notifications').eq('user_id', userId).maybeSingle(),
     supabase.from('agent_matches').select('url').eq('user_id', userId),
@@ -104,7 +118,7 @@ async function run(
   const attachments: { filename: string; content: Buffer }[] = []
   for (const match of matches) {
     let resumePath: string | null = null
-    if (row.send_resumes) {
+    if (sendResumes) {
       try {
         const description = match.description || await readJobText(match.url)
         const content = await tailorResume(profile, { ...match, description })
@@ -134,34 +148,33 @@ async function run(
     }, { onConflict: 'user_id,url', ignoreDuplicates: true })
   }
 
-  const email = settings?.notification_email || profile.contact.email
+  const email = settings?.notification_email || profile.email
   if (matches.length > 0 && settings?.email_notifications !== false && email) {
-    await sendAgentMatchEmail(email, matches.map(m => ({ ...m, posted_at: null })), attachments, profile.contact.name.split(' ')[0])
+    await sendAgentMatchEmail(email, matches.map(m => ({ ...m, posted_at: null })), attachments, profile.name.split(' ')[0])
   }
 
   return { status: 'ran', matches: matches.length }
 }
 
 // Users whose next run is due: pro every hour, free every 12 hours.
+// A user has an agent when one of their profiles is marked use_for_agent.
 export async function findDueUsers(limit: number): Promise<string[]> {
   const supabase = createServiceClient()
-  const { data: rows } = await supabase
-    .from('career_profiles')
-    .select('user_id, last_agent_run_at')
-    .eq('agent_enabled', true)
-    .not('profile', 'is', null)
-    .order('last_agent_run_at', { ascending: true, nullsFirst: true })
+  const { data: agents } = await supabase.from('autofill_profiles').select('user_id').eq('use_for_agent', true)
+  const userIds = (agents ?? []).map(a => a.user_id as string)
+  if (userIds.length === 0) return []
 
-  if (!rows || rows.length === 0) return []
-
-  const { data: subs } = await supabase
-    .from('subscriptions')
-    .select('user_id, plan')
-    .in('user_id', rows.map(r => r.user_id))
+  const [{ data: states }, { data: subs }] = await Promise.all([
+    supabase.from('career_profiles').select('user_id, agent_enabled, last_agent_run_at').in('user_id', userIds),
+    supabase.from('subscriptions').select('user_id, plan').in('user_id', userIds),
+  ])
+  const stateByUser = new Map((states ?? []).map(s => [s.user_id as string, s]))
   const planByUser = new Map((subs ?? []).map(s => [s.user_id as string, s.plan as string]))
 
-  return rows
-    .filter(r => Date.now() >= dueAt(r.last_agent_run_at, planByUser.get(r.user_id)))
+  return userIds
+    .map(id => ({ id, enabled: stateByUser.get(id)?.agent_enabled ?? true, last: (stateByUser.get(id)?.last_agent_run_at ?? null) as string | null }))
+    .filter(u => u.enabled && Date.now() >= dueAt(u.last, planByUser.get(u.id)))
+    .sort((a, b) => (a.last ? new Date(a.last).getTime() : 0) - (b.last ? new Date(b.last).getTime() : 0)) // never-run users first
     .slice(0, limit)
-    .map(r => r.user_id as string)
+    .map(u => u.id)
 }
