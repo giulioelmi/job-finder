@@ -190,12 +190,12 @@ export function CareerProfileClient({ state, agentProfile, plan, initialMatches,
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-semibold text-gray-900">2. Your agent</h2>
           <Badge className={plan === 'pro' ? 'bg-green-700 text-white' : 'bg-gray-100 text-gray-700'}>
-            {plan === 'pro' ? 'Pro: runs every hour' : 'Free: runs every 12 hours'}
+            {plan === 'pro' ? 'Pro: runs every hour' : 'Free: runs once a day'}
           </Badge>
         </div>
         {plan !== 'pro' && (
           <div className="bg-gray-50 rounded-lg p-4 mb-4 text-sm text-gray-700 space-y-1">
-            <p><strong>Free:</strong> your agent runs every 12 hours.</p>
+            <p><strong>Free:</strong> your agent runs once a day.</p>
             <p><strong>Pro{PRO_PRICE && ` (${PRO_PRICE})`}:</strong> your agent runs every hour, so you see new postings first.</p>
             <p className="text-xs text-gray-500 pt-1">You pay securely through Stripe and can cancel anytime from &ldquo;Manage billing&rdquo;.</p>
           </div>

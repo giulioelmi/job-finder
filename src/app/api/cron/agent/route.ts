@@ -5,7 +5,7 @@ export const maxDuration = 300
 
 // Called hourly. Two users per call keeps each call inside the function time limit; the
 // stalest users go first, so the rest are picked up on the next hourly call.
-// Pro users run every hour, free users every 12 hours.
+// Pro users run every hour, free users once a day.
 export async function GET(req: NextRequest) {
   const secret = req.headers.get('x-cron-secret') ?? req.nextUrl.searchParams.get('secret')
   if (secret !== process.env.CRON_SECRET) {

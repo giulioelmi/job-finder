@@ -9,7 +9,7 @@ import type { AutofillProfile } from '@/lib/types'
 
 type Service = ReturnType<typeof createServiceClient>
 
-export const FREE_HOURS = 12
+export const FREE_HOURS = 24
 export const PRO_HOURS = 1
 const SLACK_MS = 5 * 60000 // an hourly cron can fire a few minutes early
 
@@ -156,7 +156,7 @@ async function run(
   return { status: 'ran', matches: matches.length }
 }
 
-// Users whose next run is due: pro every hour, free every 12 hours.
+// Users whose next run is due: pro every hour, free once a day.
 // A user has an agent when one of their profiles is marked use_for_agent.
 export async function findDueUsers(limit: number): Promise<string[]> {
   const supabase = createServiceClient()
