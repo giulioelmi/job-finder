@@ -1,7 +1,5 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import Link from 'next/link'
-import { Button } from '@/components/ui/button'
 import { ProfilesClient } from './profiles-client'
 import { ResumeSourceCard } from './resume-source-card'
 
@@ -28,9 +26,6 @@ export default async function ProfilesPage() {
           <h1 className="text-2xl font-bold text-gray-900">Profiles</h1>
           <p className="text-gray-500 mt-1">Your career profile. It fills job applications through the Bamboo extension and feeds your AI job agent.</p>
         </div>
-        <Link href="/profiles/new">
-          <Button>+ New profile</Button>
-        </Link>
       </div>
       <ResumeSourceCard initialPaths={agentState?.resume_paths ?? []} agentProfileName={agentProfile?.name ?? null} />
       {/* The list copies its props into state once, so remount it when a build or edit changes the profiles */}
